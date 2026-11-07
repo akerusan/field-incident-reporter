@@ -24,7 +24,7 @@ Run from `android/` (`./gradlew` from Git Bash, `gradlew.bat` from cmd/PowerShel
 ./gradlew spotlessApply                                               # format Kotlin + Gradle scripts
 ./gradlew :core:data:testDebugUnitTest                                # one module's tests
 ./gradlew :core:data:testDebugUnitTest --tests "*SyncWorkerTest"      # one test class
-./gradlew :core:domain:test                                           # JVM-only modules use `test`
+./gradlew :core:domain:test                                           # JVM modules: `test` (testDebugUnitTest is an alias)
 ```
 
 ## Build setup
