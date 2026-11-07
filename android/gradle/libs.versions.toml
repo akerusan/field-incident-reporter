@@ -36,6 +36,8 @@ retrofit = "3.0.0"
 androidxTestCore = "1.7.0"
 junit = "4.13.2"
 robolectric = "4.17"
+# The Android runtime Robolectric runs tests on (SDK 36, pinned in robolectric.properties).
+robolectricAndroidAll = "16-robolectric-13921718-i7"
 turbine = "1.2.1"
 
 [libraries]
@@ -90,6 +92,7 @@ retrofit-kotlinx-serialization = { group = "com.squareup.retrofit2", name = "con
 androidx-test-core = { group = "androidx.test", name = "core-ktx", version.ref = "androidxTestCore" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+robolectric-android-all = { group = "org.robolectric", name = "android-all-instrumented", version.ref = "robolectricAndroidAll" }
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 
 # Build logic (convention plugin dependencies)

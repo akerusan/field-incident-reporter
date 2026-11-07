@@ -27,6 +27,7 @@ internal fun Project.configureKotlinAndroid(commonExtension: CommonExtension) {
     extensions.configure<KotlinAndroidProjectExtension> {
         jvmToolchain(jvmToolchain)
     }
+    configureRobolectricOffline()
     // Hilt generates unit-test sources in every module it is applied to, so a module without tests
     // of its own would otherwise fail Gradle's "no tests discovered" check.
     tasks.withType<Test>().configureEach {
