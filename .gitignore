@@ -1,0 +1,30 @@
+# Private working notes (never published)
+assignement.txt
+PLAN.md
+.claude/
+
+# IDE / OS
+**/.idea/
+**/*.iml
+.DS_Store
+Thumbs.db
+
+# Android / Gradle
+**/build/
+**/.gradle/
+**/.kotlin/
+**/captures/
+**/.externalNativeBuild/
+**/.cxx/
+android/local.properties
+
+# Node
+**/node_modules/
+web/.next/
+web/out/
+web/next-env.d.ts
+
+# Mock API runtime state (recreated from seed on start)
+server/db.json
+server/public/uploads/*
+!server/public/uploads/.gitkeep
