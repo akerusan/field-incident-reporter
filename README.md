@@ -21,6 +21,10 @@ cd android
 
 Or open the `android/` folder in Android Studio and run the `app` configuration.
 
+From the command line, Gradle needs the Android SDK location: set `ANDROID_HOME`, or open the
+project once in Android Studio, which writes it to `android/local.properties`. On Windows, clone to
+a short path or run `git config --global core.longpaths true`, since some source paths are long.
+
 ## Checks
 
 ```bash
