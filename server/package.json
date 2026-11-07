@@ -1,0 +1,21 @@
+{
+  "name": "field-incident-reporter-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local mock API for Field Incident Reporter (json-server + photo uploads)",
+  "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "prestart": "node scripts/seed.js",
+    "start": "node index.js",
+    "reset": "node scripts/seed.js --force",
+    "smoke": "node scripts/smoke.js",
+    "lint:api": "npx -y @redocly/cli@2.76.0 lint openapi.yaml"
+  },
+  "dependencies": {
+    "json-server": "0.17.4",
+    "multer": "2.5.0"
+  }
+}

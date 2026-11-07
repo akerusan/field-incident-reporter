@@ -14,3 +14,12 @@ updates:
     directory: /
     schedule:
       interval: weekly
+
+  - package-ecosystem: npm
+    directory: /server
+    schedule:
+      interval: weekly
+    ignore:
+      # Pinned on purpose: json-server 1.x is a rewrite (still beta) with a different API.
+      - dependency-name: json-server
+        update-types: ["version-update:semver-major"]

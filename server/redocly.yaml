@@ -1,0 +1,8 @@
+extends:
+  - recommended
+rules:
+  # A local mock server: localhost is the intended URL, and there is no license to declare.
+  no-server-example.com: off
+  info-license: off
+  # GET /incidents has no client error to report (unknown filters are ignored).
+  operation-4xx-response: off
