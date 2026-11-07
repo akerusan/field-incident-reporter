@@ -27,6 +27,19 @@ Run from `android/` (`./gradlew` from Git Bash, `gradlew.bat` from cmd/PowerShel
 ./gradlew :core:domain:test                                           # JVM modules: `test` (testDebugUnitTest is an alias)
 ```
 
+## Web (dashboard) commands
+
+Run from `web/` (Node 22.12+; the mock API must be running for `dev`/`start`):
+
+```bash
+npm run dev            # http://localhost:3001 (NEXT_PUBLIC_API_URL defaults to http://localhost:3000)
+npm run lint && npm run typecheck && npm test && npm run build   # what CI runs
+npm run generate:api   # regenerate src/api/types.ts after changing server/openapi.yaml (commit it)
+```
+
+Pinned on purpose: TypeScript 5.x (openapi-typescript requires it) and ESLint 9 (the React plugin
+in eslint-config-next doesn't support ESLint 10 yet).
+
 ## Build setup
 
 - AGP 9.5 with **built-in Kotlin**: there is no `org.jetbrains.kotlin.android` plugin. Pure JVM

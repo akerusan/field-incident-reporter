@@ -26,6 +26,7 @@ android/local.properties
 web/.next/
 web/out/
 web/next-env.d.ts
+**/*.tsbuildinfo
 
 # Mock API runtime state (recreated from seed on start)
 server/db.json
