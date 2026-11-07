@@ -1,0 +1,35 @@
+<resources>
+    <string name="incident_detail_title">Incident</string>
+    <string name="incident_detail_back">Back</string>
+    <string name="incident_detail_edit">Edit</string>
+    <string name="incident_detail_delete">Delete</string>
+    <string name="incident_detail_photo_position">Photo %1$d of %2$d</string>
+
+    <string name="incident_detail_description">Description</string>
+    <string name="incident_detail_no_description">No description</string>
+    <string name="incident_detail_location">Location</string>
+    <string name="incident_detail_category">Category</string>
+    <string name="incident_detail_reported">Reported</string>
+    <string name="incident_detail_updated">Last updated</string>
+
+    <string name="incident_detail_read_only">Resolved by an operator. Resolved incidents can\'t be edited or deleted.</string>
+
+    <string name="incident_detail_pending_title">Waiting to sync</string>
+    <string name="incident_detail_pending_message">Saved on this device. It will be sent to the server as soon as there\'s a connection.</string>
+    <string name="incident_detail_pending_delete_message">This incident will be deleted from the server shortly.</string>
+    <string name="incident_detail_failed_title">Not synced</string>
+    <string name="incident_detail_failed_delete_title">Couldn\'t delete</string>
+    <string name="incident_detail_failed_resolved">An operator resolved this incident, so your changes can\'t be applied. Discard them to see the operator\'s version.</string>
+    <string name="incident_detail_failed_rejected">The server rejected this change: %1$s</string>
+    <string name="incident_detail_failed_server">The server kept failing. Try again later.</string>
+    <string name="incident_detail_retry">Retry</string>
+    <string name="incident_detail_discard">Discard my changes</string>
+
+    <string name="incident_detail_delete_dialog_title">Delete this incident?</string>
+    <string name="incident_detail_delete_dialog_message">You can undo this for a few seconds from the incident list.</string>
+    <string name="incident_detail_cancel">Cancel</string>
+
+    <string name="incident_detail_message_read_only">Resolved incidents can\'t be deleted.</string>
+    <string name="incident_detail_message_needs_connection">Couldn\'t reach the server. Check your connection and try again.</string>
+    <string name="incident_detail_message_discarded">Your changes were discarded.</string>
+</resources>

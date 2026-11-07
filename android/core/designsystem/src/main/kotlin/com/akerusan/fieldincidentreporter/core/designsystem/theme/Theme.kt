@@ -6,11 +6,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.platform.LocalContext
 
 /**
  * The app theme. Follows the system dark/light setting and uses the wallpaper-based dynamic color
- * scheme on Android 12+ when [dynamicColor] is true; otherwise the brand palette.
+ * scheme on Android 12+ when [dynamicColor] is true; otherwise the brand palette. Severity and sync
+ * colors ([StatusColors]) are fixed in both cases.
  */
 @Composable
 fun FieldIncidentReporterTheme(
@@ -29,8 +32,17 @@ fun FieldIncidentReporterTheme(
         else -> LightColorScheme
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        content = content,
-    )
+    CompositionLocalProvider(LocalStatusColors provides if (darkTheme) DarkStatusColors else LightStatusColors) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            content = content,
+        )
+    }
+}
+
+object FieldIncidentReporterTheme {
+    val statusColors: StatusColors
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalStatusColors.current
 }

@@ -1,0 +1,18 @@
+<resources>
+    <string name="incident_list_title">Incidents</string>
+    <string name="incident_list_report">Report incident</string>
+    <string name="incident_list_filter_all">All</string>
+    <string name="incident_list_filters">Filter by status</string>
+    <string name="incident_list_empty_title">No incidents yet</string>
+    <string name="incident_list_empty_message">Report a problem you find on site. It\'s saved on this device right away, even offline.</string>
+    <string name="incident_list_empty_filtered_title">Nothing here</string>
+    <string name="incident_list_empty_filtered_message">No incidents have this status.</string>
+    <string name="incident_list_deleted">Incident deleted</string>
+    <string name="incident_list_undo">Undo</string>
+    <string name="incident_list_already_deleted">Too late to undo: the incident was already deleted.</string>
+    <string name="incident_list_will_sync">You\'re offline. Incidents will refresh when you\'re back online.</string>
+    <plurals name="incident_list_photo_count">
+        <item quantity="one">%1$d photo</item>
+        <item quantity="other">%1$d photos</item>
+    </plurals>
+</resources>
