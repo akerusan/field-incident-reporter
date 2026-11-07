@@ -3,6 +3,9 @@ assignement.txt
 PLAN.md
 .claude/
 
+# Kept local while the work is in progress; committed once, in its final form
+docs/ai-usage.md
+
 # IDE / OS
 **/.idea/
 **/*.iml
