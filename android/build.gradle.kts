@@ -12,15 +12,19 @@ plugins {
     alias(libs.plugins.spotless)
 }
 
+// Source files only: the excludes also stop Spotless from walking build directories that other
+// tasks are writing to in parallel.
+val formattedSources = fileTree(rootDir) {
+    exclude("**/build/**", "**/.gradle/**", "**/.kotlin/**")
+}
+
 spotless {
     kotlin {
-        target("**/*.kt")
-        targetExclude("**/build/**")
+        target(formattedSources.matching { include("**/*.kt") })
         ktlint(libs.versions.ktlint.get())
     }
     kotlinGradle {
-        target("**/*.gradle.kts")
-        targetExclude("**/build/**")
+        target(formattedSources.matching { include("**/*.gradle.kts") })
         ktlint(libs.versions.ktlint.get())
     }
 }

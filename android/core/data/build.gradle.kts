@@ -13,15 +13,18 @@ dependencies {
     implementation(projects.core.network)
 
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.exifinterface)
     implementation(libs.androidx.hilt.work)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.kotlinx.coroutines.android)
     ksp(libs.androidx.hilt.compiler)
 
     testImplementation(projects.core.testing)
+    testImplementation(libs.androidx.room.runtime)
+    testImplementation(libs.androidx.room.testing)
+    testImplementation(libs.retrofit.kotlinx.serialization)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.androidx.work.testing)
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.robolectric)
-    testImplementation(libs.turbine)
 }
