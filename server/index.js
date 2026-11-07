@@ -45,7 +45,10 @@ function sendError(res, status, code, message) {
 // --- Validation ---------------------------------------------------------------------------------
 
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim().length > 0;
-const isIsoInstant = (value) => typeof value === 'string' && !Number.isNaN(Date.parse(value));
+// A UTC instant such as 2026-11-07T08:30:00Z or 2026-11-07T08:30:00.123Z. Strict on purpose: clients
+// parse it as an ISO-8601 instant, and a looser format would make them skip the incident.
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/;
+const isIsoInstant = (value) => typeof value === 'string' && ISO_INSTANT.test(value) && !Number.isNaN(Date.parse(value));
 
 /** Returns a list of problems with a full incident body (PUT), empty when valid. */
 function validateIncident(body) {
@@ -56,8 +59,8 @@ function validateIncident(body) {
   if (!SEVERITIES.includes(body.severity)) problems.push(`severity must be one of ${SEVERITIES.join(', ')}`);
   if (!STATUSES.includes(body.status)) problems.push(`status must be one of ${STATUSES.join(', ')}`);
   if (typeof body.locationNote !== 'string') problems.push('locationNote must be a string');
-  if (!isIsoInstant(body.reportedAt)) problems.push('reportedAt must be an ISO-8601 instant');
-  if (!isIsoInstant(body.updatedAt)) problems.push('updatedAt must be an ISO-8601 instant');
+  if (!isIsoInstant(body.reportedAt)) problems.push('reportedAt must be an ISO-8601 UTC instant (…Z)');
+  if (!isIsoInstant(body.updatedAt)) problems.push('updatedAt must be an ISO-8601 UTC instant (…Z)');
   if (!Array.isArray(body.photos)) {
     problems.push('photos must be an array');
   } else if (!body.photos.every((photo) => isNonEmptyString(photo?.id) && isNonEmptyString(photo?.path))) {
@@ -76,7 +79,7 @@ function validatePatch(body) {
     problems.push(`status must be one of ${STATUSES.join(', ')}`);
   }
   if (body.updatedAt !== undefined && !isIsoInstant(body.updatedAt)) {
-    problems.push('updatedAt must be an ISO-8601 instant');
+    problems.push('updatedAt must be an ISO-8601 UTC instant (…Z)');
   }
   return problems;
 }

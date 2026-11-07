@@ -180,10 +180,21 @@ class IncidentListViewModelTest {
     }
 
     @Test
-    fun `the refresh indicator gives up if the sync never starts`() = runTest {
+    fun `the refresh indicator stops even if a fast sync was never seen running`() = runTest {
         collectUiState()
 
         viewModel.onRefresh()
+        advanceTimeBy(4.seconds)
+
+        assertFalse(state.isRefreshing)
+    }
+
+    @Test
+    fun `the refresh indicator gives up on a sync that never finishes`() = runTest {
+        collectUiState()
+        viewModel.onRefresh()
+        syncMonitor.isSyncing.value = true
+
         advanceTimeBy(21.seconds)
 
         assertFalse(state.isRefreshing)

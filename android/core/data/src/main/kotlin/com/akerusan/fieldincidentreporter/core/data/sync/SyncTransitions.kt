@@ -23,6 +23,8 @@ import java.time.Instant
  * | PENDING / DELETE            | undo      | PENDING / CREATE if never synced, else UPDATE       |
  * | PENDING / DELETE            | commit    | undo window closed (`deleteAfter = null`)           |
  * | FAILED / any                | retry     | PENDING / same operation                            |
+ * | FAILED / any                | discard   | SYNCED with the server's copy; version still grows  |
+ * | SYNCED                      | pull      | the server's content; versions unchanged            |
  */
 
 /** The operation that recreates this row's content on the server. */
@@ -101,3 +103,20 @@ internal val IncidentEntity.isPendingDelete: Boolean
 
 internal val IncidentEntity.isUndoableDelete: Boolean
     get() = isPendingDelete && deleteAfter != null
+
+/**
+ * Discards a failed local change: the row becomes the server's copy [server], confirmed. The
+ * version keeps growing rather than going back, so a confirmation still in flight for an older
+ * version can never match it.
+ */
+internal fun IncidentEntity.replacedByServerCopy(server: IncidentEntity): IncidentEntity {
+    check(syncState == SyncState.FAILED) { "Incident $id has no failed change to discard" }
+    val newVersion = localVersion + 1
+    return server.copy(localVersion = newVersion, syncedVersion = newVersion)
+}
+
+/** A synced row takes the server's latest content. Nothing local is pending, so versions stay. */
+internal fun IncidentEntity.updatedFromServer(server: IncidentEntity): IncidentEntity {
+    check(syncState == SyncState.SYNCED) { "Incident $id has local changes the pull must not overwrite" }
+    return server.copy(localVersion = localVersion, syncedVersion = syncedVersion)
+}

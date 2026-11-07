@@ -64,8 +64,10 @@ interface IncidentDao {
     @Query("SELECT * FROM incidents WHERE sync_state = 'PENDING' ORDER BY reported_at ASC")
     suspend fun getPending(): List<IncidentWithPhotos>
 
-    @Query("SELECT id, sync_state FROM incidents")
-    suspend fun getSyncStates(): List<IncidentSyncStateRow>
+    /** Every row with its photos, in one query (the pull compares them all with the server's list). */
+    @Transaction
+    @Query("SELECT * FROM incidents")
+    suspend fun getAll(): List<IncidentWithPhotos>
 
     // --- Writes ----------------------------------------------------------------------------------
 

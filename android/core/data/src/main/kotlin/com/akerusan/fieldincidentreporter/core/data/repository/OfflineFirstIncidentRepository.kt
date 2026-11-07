@@ -7,6 +7,8 @@ import com.akerusan.fieldincidentreporter.core.data.sync.deleted
 import com.akerusan.fieldincidentreporter.core.data.sync.deletionCommitted
 import com.akerusan.fieldincidentreporter.core.data.sync.edited
 import com.akerusan.fieldincidentreporter.core.data.sync.isPendingDelete
+import com.akerusan.fieldincidentreporter.core.data.sync.mergeServerCopy
+import com.akerusan.fieldincidentreporter.core.data.sync.replacedByServerCopy
 import com.akerusan.fieldincidentreporter.core.data.sync.restored
 import com.akerusan.fieldincidentreporter.core.data.sync.retried
 import com.akerusan.fieldincidentreporter.core.database.DatabaseTransactionRunner
@@ -19,6 +21,7 @@ import com.akerusan.fieldincidentreporter.core.domain.result.RestoreResult
 import com.akerusan.fieldincidentreporter.core.model.Incident
 import com.akerusan.fieldincidentreporter.core.model.IncidentDraft
 import com.akerusan.fieldincidentreporter.core.model.IncidentFilter
+import com.akerusan.fieldincidentreporter.core.model.PendingOperation
 import com.akerusan.fieldincidentreporter.core.model.SyncState
 import com.akerusan.fieldincidentreporter.core.network.IncidentApi
 import java.io.IOException
@@ -67,6 +70,7 @@ class OfflineFirstIncidentRepository @Inject constructor(
     override suspend fun updateIncident(id: String, draft: IncidentDraft, updatedAt: Instant): Boolean {
         val updated = transaction {
             val row = dao.getById(id) ?: return@transaction false
+            if (row.incident.isPendingDelete) return@transaction false // being deleted: nothing to edit
             dao.update(row.incident.edited(draft, updatedAt))
             dao.replacePhotos(id, mapper.toPhotoEntities(id, draft.photos, existing = row.photos))
             true
@@ -78,7 +82,8 @@ class OfflineFirstIncidentRepository @Inject constructor(
     /** No sync is requested: the delete waits for the undo window to close (see [commitDeletion]). */
     override suspend fun markDeleted(id: String, undoUntil: Instant): Boolean = transaction {
         val row = dao.getById(id) ?: return@transaction false
-        dao.update(row.incident.deleted(undoUntil))
+        // A second delete (for example a double tap) is a no-op, not an error.
+        if (row.incident.pendingOperation != PendingOperation.DELETE) dao.update(row.incident.deleted(undoUntil))
         true
     }
 
@@ -119,12 +124,7 @@ class OfflineFirstIncidentRepository @Inject constructor(
         if (row == null || row.incident.syncState != SyncState.FAILED) {
             return DiscardChangesResult.NOTHING_TO_DISCARD
         }
-        if (row.incident.syncedVersion == 0L) {
-            // The server never had it: discarding the change means discarding the incident.
-            deleteLocally(id, expectedVersion = row.incident.localVersion)
-            return DiscardChangesResult.DISCARDED
-        }
-
+        // Asked even for a create the server never confirmed: its PUT may have arrived anyway.
         val response = try {
             api.getIncident(id)
         } catch (_: IOException) {
@@ -146,25 +146,17 @@ class OfflineFirstIncidentRepository @Inject constructor(
         }
     }
 
-    /**
-     * Overwrites a failed row with the server's version. The version keeps growing (it never goes
-     * back) and is marked as confirmed. Skipped if the user changed the row while we were fetching.
-     */
+    /** Overwrites a failed row with the server's version. Skipped if the user changed the row meanwhile. */
     private suspend fun replaceWithServerCopy(expectedVersion: Long, server: ServerIncident): DiscardChangesResult {
         val removedPhotos = transaction {
             val current = dao.getById(server.incident.id)
             if (current == null || current.incident.localVersion != expectedVersion) {
                 return@transaction null
             }
-            val newVersion = expectedVersion + 1
-            dao.update(server.incident.copy(localVersion = newVersion, syncedVersion = newVersion))
-            val localPathById = current.photos.associate { it.id to it.localPath }
-            dao.replacePhotos(
-                server.incident.id,
-                server.photos.map { it.copy(localPath = localPathById[it.id]) },
-            )
-            val serverPhotoIds = server.photos.map { it.id }.toSet()
-            current.photos.filterNot { it.id in serverPhotoIds }
+            val merge = mergeServerCopy(current, server, current.incident.replacedByServerCopy(server.incident))
+            dao.update(merge.incident)
+            dao.replacePhotos(server.incident.id, merge.photos)
+            merge.obsoletePhotos
         } ?: return DiscardChangesResult.NOTHING_TO_DISCARD
         photoStore.deleteLocalFiles(removedPhotos.asLocalPhotos())
         return DiscardChangesResult.DISCARDED

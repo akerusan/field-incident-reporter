@@ -38,6 +38,13 @@ class DeleteIncidentUseCaseTest {
     }
 
     @Test
+    fun `deleting an incident that is already being deleted is a no-op`() = runTest {
+        deleteIncident("incident-1")
+
+        assertEquals(DeleteIncidentResult.Deleted, deleteIncident("incident-1"))
+    }
+
+    @Test
     fun `restoring an incident that is already gone is too late`() = runTest {
         assertEquals(RestoreResult.TOO_LATE, RestoreIncidentUseCase(repository)("unknown"))
     }

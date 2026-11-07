@@ -5,6 +5,7 @@ import com.akerusan.fieldincidentreporter.core.domain.IncidentRepository
 import com.akerusan.fieldincidentreporter.core.domain.PhotoStore
 import com.akerusan.fieldincidentreporter.core.domain.result.SaveIncidentResult
 import com.akerusan.fieldincidentreporter.core.model.IncidentDraft
+import com.akerusan.fieldincidentreporter.core.model.PendingOperation
 import javax.inject.Inject
 
 /**
@@ -20,6 +21,7 @@ class UpdateIncidentUseCase @Inject constructor(
     suspend operator fun invoke(id: String, draft: IncidentDraft): SaveIncidentResult {
         val current = repository.getIncident(id) ?: return SaveIncidentResult.NotFound
         if (current.isReadOnly) return SaveIncidentResult.ReadOnly
+        if (current.pendingOperation == PendingOperation.DELETE) return SaveIncidentResult.NotFound // being deleted
 
         val errors = validateDraft(draft)
         if (errors.isNotEmpty()) return SaveIncidentResult.Invalid(errors)

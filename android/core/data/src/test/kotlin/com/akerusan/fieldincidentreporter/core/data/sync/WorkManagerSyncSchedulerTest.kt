@@ -3,13 +3,14 @@ package com.akerusan.fieldincidentreporter.core.data.sync
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.Configuration
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,18 +29,34 @@ class WorkManagerSyncSchedulerTest {
     }
 
     @Test
-    fun `sync requests are chained under one unique work name and wait for a network`() {
+    fun `a waiting sync is replaced rather than queued behind, and waits for a network`() {
         val scheduler = WorkManagerSyncScheduler(context)
 
-        scheduler.requestSync()
-        scheduler.requestSync()
+        scheduler.enqueueSync()
+        scheduler.enqueueSync()
 
         val infos = WorkManager.getInstance(context)
             .getWorkInfosForUniqueWork(WorkManagerSyncScheduler.SYNC_WORK_NAME)
             .get()
-        assertEquals(2, infos.size)
-        assertTrue(infos.all { it.constraints.requiredNetworkType == NetworkType.CONNECTED })
-        // The second request waits for the first: syncs never run concurrently.
-        assertTrue(infos.any { it.state == WorkInfo.State.BLOCKED })
+            .filterNot { it.state.isFinished }
+        assertEquals(1, infos.size)
+        assertEquals(WorkInfo.State.ENQUEUED, infos.single().state)
+        assertEquals(NetworkType.CONNECTED, infos.single().constraints.requiredNetworkType)
+    }
+
+    @Test
+    fun `nothing running starts a sync now, replacing one in backoff`() {
+        assertEquals(ExistingWorkPolicy.REPLACE, WorkManagerSyncScheduler.policyFor(emptyList()))
+        assertEquals(ExistingWorkPolicy.REPLACE, WorkManagerSyncScheduler.policyFor(listOf(WorkInfo.State.ENQUEUED)))
+        assertEquals(ExistingWorkPolicy.REPLACE, WorkManagerSyncScheduler.policyFor(listOf(WorkInfo.State.SUCCEEDED)))
+    }
+
+    @Test
+    fun `a running sync gets exactly one follow-up`() {
+        assertEquals(
+            ExistingWorkPolicy.APPEND_OR_REPLACE,
+            WorkManagerSyncScheduler.policyFor(listOf(WorkInfo.State.RUNNING)),
+        )
+        assertNull(WorkManagerSyncScheduler.policyFor(listOf(WorkInfo.State.RUNNING, WorkInfo.State.BLOCKED)))
     }
 }

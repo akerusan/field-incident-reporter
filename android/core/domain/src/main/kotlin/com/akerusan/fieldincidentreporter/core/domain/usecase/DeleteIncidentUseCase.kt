@@ -3,6 +3,7 @@ package com.akerusan.fieldincidentreporter.core.domain.usecase
 import com.akerusan.fieldincidentreporter.core.domain.Clock
 import com.akerusan.fieldincidentreporter.core.domain.IncidentRepository
 import com.akerusan.fieldincidentreporter.core.domain.result.DeleteIncidentResult
+import com.akerusan.fieldincidentreporter.core.model.PendingOperation
 import java.time.Duration
 import javax.inject.Inject
 
@@ -14,6 +15,7 @@ class DeleteIncidentUseCase @Inject constructor(private val repository: Incident
     suspend operator fun invoke(id: String): DeleteIncidentResult {
         val incident = repository.getIncident(id) ?: return DeleteIncidentResult.NotFound
         if (incident.isReadOnly) return DeleteIncidentResult.ReadOnly
+        if (incident.pendingOperation == PendingOperation.DELETE) return DeleteIncidentResult.Deleted // already
         val marked = repository.markDeleted(id, undoUntil = clock.now().plus(UNDO_WINDOW))
         return if (marked) DeleteIncidentResult.Deleted else DeleteIncidentResult.NotFound
     }

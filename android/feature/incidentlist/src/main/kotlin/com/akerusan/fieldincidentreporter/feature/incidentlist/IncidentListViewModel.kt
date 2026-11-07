@@ -87,8 +87,8 @@ class IncidentListViewModel @Inject constructor(
     }
 
     /**
-     * Pull-to-refresh. The indicator stays on until the sync has run (or didn't start in time),
-     * rather than flickering off while the work is queued.
+     * Pull-to-refresh. The indicator stays on until the sync has run, rather than flickering off
+     * while the work is queued.
      */
     fun onRefresh() {
         if (refreshJob?.isActive == true) return
@@ -100,10 +100,10 @@ class IncidentListViewModel @Inject constructor(
             }
             isRefreshing.value = true
             try {
-                withTimeoutOrNull(REFRESH_TIMEOUT) {
-                    observeSyncActivity().first { it }
-                    observeSyncActivity().first { !it }
-                }
+                // A fast sync can be queued and done before we ever see it, so the wait for it to
+                // appear is short; the wait for it to finish is bounded too.
+                withTimeoutOrNull(SYNC_START_TIMEOUT) { observeSyncActivity().first { it } }
+                withTimeoutOrNull(SYNC_FINISH_TIMEOUT) { observeSyncActivity().first { !it } }
             } finally {
                 isRefreshing.value = false
             }
@@ -125,6 +125,7 @@ class IncidentListViewModel @Inject constructor(
 
     private companion object {
         const val KEY_STATUS_FILTER = "statusFilter"
-        val REFRESH_TIMEOUT = 20.seconds
+        val SYNC_START_TIMEOUT = 3.seconds
+        val SYNC_FINISH_TIMEOUT = 20.seconds
     }
 }

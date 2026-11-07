@@ -4,6 +4,8 @@ import com.akerusan.fieldincidentreporter.core.domain.result.DraftError
 import com.akerusan.fieldincidentreporter.core.domain.result.SaveIncidentResult
 import com.akerusan.fieldincidentreporter.core.model.IncidentPhoto
 import com.akerusan.fieldincidentreporter.core.model.IncidentStatus
+import com.akerusan.fieldincidentreporter.core.model.PendingOperation
+import com.akerusan.fieldincidentreporter.core.model.SyncState
 import com.akerusan.fieldincidentreporter.core.testing.FakeClock
 import com.akerusan.fieldincidentreporter.core.testing.FakeIncidentRepository
 import com.akerusan.fieldincidentreporter.core.testing.FakePhotoStore
@@ -47,6 +49,13 @@ class UpdateIncidentUseCaseTest {
 
         assertEquals(SaveIncidentResult.Invalid(setOf(DraftError.TITLE_MISSING)), result)
         assertTrue(photoStore.deletedPhotos.isEmpty())
+    }
+
+    @Test
+    fun `an incident being deleted can't be edited`() = runTest {
+        repository.set(testIncident(syncState = SyncState.PENDING, pendingOperation = PendingOperation.DELETE))
+
+        assertEquals(SaveIncidentResult.NotFound, updateIncident("incident-1", testDraft()))
     }
 
     @Test

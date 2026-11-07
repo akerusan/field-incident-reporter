@@ -69,6 +69,8 @@ internal fun SyncStatusCard(
                     SyncError.Reason.REJECTED_BY_SERVER ->
                         stringResource(R.string.incident_detail_failed_rejected, error.detail.orEmpty())
 
+                    SyncError.Reason.PHOTO_MISSING -> stringResource(R.string.incident_detail_failed_photo_missing)
+
                     SyncError.Reason.SERVER_ERROR, null -> stringResource(R.string.incident_detail_failed_server)
                 },
             ) {

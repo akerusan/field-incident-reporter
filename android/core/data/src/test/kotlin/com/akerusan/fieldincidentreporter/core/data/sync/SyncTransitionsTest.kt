@@ -143,6 +143,38 @@ class SyncTransitionsTest {
         assertNull(result.syncErrorReason)
     }
 
+    @Test
+    fun `discard replaces a failed row with the server's copy, confirmed, and the version still grows`() {
+        val failed =
+            entity(SyncState.FAILED, PendingOperation.UPDATE, localVersion = 5, syncedVersion = 3, error = true)
+        val server = entity(SyncState.SYNCED, null, localVersion = 1, syncedVersion = 1).copy(title = "Server")
+
+        val result = failed.replacedByServerCopy(server)
+
+        assertEquals("Server", result.title)
+        assertEquals(SyncState.SYNCED, result.syncState)
+        assertNull(result.pendingOperation)
+        assertEquals(6, result.localVersion)
+        assertEquals(6, result.syncedVersion)
+    }
+
+    @Test
+    fun `a pull update takes the server's content and keeps the versions`() {
+        val synced = entity(SyncState.SYNCED, null, localVersion = 3, syncedVersion = 3)
+        val server = entity(SyncState.SYNCED, null, localVersion = 1, syncedVersion = 1).copy(title = "Server")
+
+        val result = synced.updatedFromServer(server)
+
+        assertEquals("Server", result.title)
+        assertEquals(3, result.localVersion)
+        assertEquals(3, result.syncedVersion)
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun `a pull never overwrites a row with local changes`() {
+        entity(SyncState.PENDING, PendingOperation.UPDATE).updatedFromServer(entity(SyncState.SYNCED, null))
+    }
+
     @Test(expected = IllegalStateException::class)
     fun `retry of a row that didn't fail is rejected`() {
         entity(SyncState.PENDING, PendingOperation.UPDATE).retried()

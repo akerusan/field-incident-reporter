@@ -217,16 +217,55 @@ class IncidentSynchronizerTest {
     }
 
     @Test
-    fun `deleting an incident the server never had makes no request`() = runTest {
-        dao.insert(entity(syncState = SyncState.PENDING, pendingOperation = PendingOperation.CREATE, syncedVersion = 0))
-        env.repository.markDeleted("incident-1", undoUntil = env.clock.now())
-        env.repository.commitDeletion("incident-1")
+    fun `deleting a create the server never confirmed still asks the server, since the PUT may have arrived`() =
+        runTest {
+            dao.insert(
+                entity(syncState = SyncState.PENDING, pendingOperation = PendingOperation.CREATE, syncedVersion = 0),
+            )
+            env.repository.markDeleted("incident-1", undoUntil = env.clock.now())
+            env.repository.commitDeletion("incident-1")
+            env.respond("DELETE", "/incidents/incident-1", 200) // it did arrive: the response had been lost
+            env.respond("GET", "/incidents", 200, "[]")
+
+            env.synchronizer.sync(isLastAttempt = false)
+
+            assertEquals(listOf("DELETE /incidents/incident-1", "GET /incidents"), env.requests)
+            assertNull(dao.getById("incident-1"))
+        }
+
+    @Test
+    fun `an unuploaded photo whose file is gone marks the change failed instead of dropping the photo`() = runTest {
+        dao.insert(entity(syncState = SyncState.PENDING, pendingOperation = PendingOperation.UPDATE, localVersion = 2))
+        dao.insertPhotos(listOf(photoEntity("lost", localPath = "/no/such/file.jpg")))
         env.respond("GET", "/incidents", 200, "[]")
 
         env.synchronizer.sync(isLastAttempt = false)
 
-        assertEquals(listOf("GET /incidents"), env.requests)
-        assertNull(dao.getById("incident-1"))
+        val row = checkNotNull(dao.getById("incident-1"))
+        assertEquals(SyncState.FAILED, row.incident.syncState)
+        assertEquals(SyncError.Reason.PHOTO_MISSING, row.incident.syncErrorReason)
+        assertEquals(1, row.photos.size)
+        assertTrue("PUT /incidents/incident-1" !in env.requests)
+    }
+
+    @Test
+    fun `a malformed success response is a server error, retried rather than crashing the sync`() = runTest {
+        val photoFile = tempFolder.newFile("p1.jpg").apply { writeBytes(byteArrayOf(1)) }
+        dao.insert(entity(syncState = SyncState.PENDING, pendingOperation = PendingOperation.UPDATE, localVersion = 2))
+        dao.insertPhotos(listOf(photoEntity("p1", localPath = photoFile.absolutePath)))
+        env.respond("POST", "/uploads", 201, "<html>proxy error</html>")
+        env.respond("GET", "/incidents", 200, "[]")
+
+        assertEquals(Outcome.RETRY, env.synchronizer.sync(isLastAttempt = false))
+        assertEquals(SyncState.PENDING, checkNotNull(dao.getById("incident-1")).incident.syncState)
+    }
+
+    @Test
+    fun `a pull that keeps failing is given up on the last attempt, so the work can finish`() = runTest {
+        env.respond("GET", "/incidents", 503)
+
+        assertEquals(Outcome.RETRY, env.synchronizer.sync(isLastAttempt = false))
+        assertEquals(Outcome.SUCCESS, env.synchronizer.sync(isLastAttempt = true))
     }
 
     @Test

@@ -29,12 +29,13 @@ import retrofit2.Response
  * One sync run: **push** every pending local change, then **pull** the server's incidents.
  *
  * Push and pull run in the same run, in that order, so a pull can never work from a list fetched
- * before a push it races with. Runs never overlap: they are chained under a single WorkManager
- * unique work name (see WorkManagerSyncScheduler).
+ * before a push it races with. Runs never overlap: they share a single WorkManager unique work
+ * name (see WorkManagerSyncScheduler).
  *
  * Each row is independent: a failure on one never stops the others. Failures are classified as
  *  - **network** (no connection, timeout): the row stays pending and the run is retried later;
- *  - **server error** (5xx, 429): retried with backoff, then marked FAILED on the last attempt;
+ *  - **server error** (5xx, 429, a malformed response): retried with backoff, then marked FAILED
+ *    on the last attempt;
  *  - **rejected** (other 4xx, including 409 for resolved incidents): marked FAILED right away,
  *    since retrying the same request can't succeed; the user can retry or discard.
  */
@@ -49,7 +50,10 @@ class IncidentSynchronizer @Inject constructor(
 ) {
     enum class Outcome { SUCCESS, RETRY }
 
-    /** @param isLastAttempt whether rows that keep hitting server errors should now be marked FAILED. */
+    /**
+     * @param isLastAttempt whether rows that keep hitting server errors should now be marked FAILED,
+     *   and a failing pull given up on until the next sync.
+     */
     suspend fun sync(isLastAttempt: Boolean): Outcome {
         var retry = false
         for (row in dao.getPending()) {
@@ -70,7 +74,11 @@ class IncidentSynchronizer @Inject constructor(
                 }
             }
         }
-        if (!pull()) retry = true
+        when (pull()) {
+            PullResult.Done -> Unit
+            PullResult.NetworkError -> retry = true
+            PullResult.ServerError -> if (!isLastAttempt) retry = true
+        }
         return if (retry) Outcome.RETRY else Outcome.SUCCESS
     }
 
@@ -99,6 +107,8 @@ class IncidentSynchronizer @Inject constructor(
             }
         } catch (_: IOException) {
             PushResult.NetworkError
+        } catch (_: SerializationException) {
+            PushResult.ServerError("Unexpected response from the server")
         }
     }
 
@@ -106,7 +116,12 @@ class IncidentSynchronizer @Inject constructor(
         val incident = row.incident
         val photos = row.orderedPhotos.map { photo ->
             if (photo.remotePath != null) return@map photo
-            val file = photo.localPath?.let(::File)?.takeIf { it.exists() } ?: return@map photo
+            val file = photo.localPath?.let(::File)?.takeIf { it.exists() }
+            if (file == null) {
+                // Sending the incident without it would lose the photo silently: let the user decide.
+                dao.markFailed(incident.id, version, SyncError.Reason.PHOTO_MISSING, detail = null)
+                return PushResult.Done
+            }
             val response = api.uploadPhoto(file.asMultipartPart())
             val path = response.body()?.path
             if (!response.isSuccessful || path == null) return handleFailure(row, version, response)
@@ -124,12 +139,12 @@ class IncidentSynchronizer @Inject constructor(
         val deleteAfter = incident.deleteAfter
         if (deleteAfter != null && deleteAfter.isAfter(clock.now())) return PushResult.Skipped
 
-        // A row the server never had is just removed locally.
-        if (incident.syncedVersion != 0L) {
-            val response = api.deleteIncident(incident.id)
-            val alreadyGone = response.code() == HttpURLConnection.HTTP_NOT_FOUND
-            if (!response.isSuccessful && !alreadyGone) return handleFailure(row, version, response)
-        }
+        // Sent even if the server never confirmed a create: the PUT may have reached it with its
+        // response lost. A 404 (it never got there) is as good as a success.
+        val response = api.deleteIncident(incident.id)
+        val alreadyGone = response.code() == HttpURLConnection.HTTP_NOT_FOUND
+        if (!response.isSuccessful && !alreadyGone) return handleFailure(row, version, response)
+
         // Conditional: if the user pressed Undo meanwhile, the row survives with a newer version
         // and the next push re-creates it on the server (PUT is an upsert).
         if (dao.deleteIfVersion(incident.id, version) == 1) {
@@ -142,8 +157,8 @@ class IncidentSynchronizer @Inject constructor(
         val code = response.code()
         val error = errorParser.parse(response)
         val detail = error?.message ?: "HTTP $code"
-        if (code >= HttpURLConnection.HTTP_INTERNAL_ERROR || code == HTTP_TOO_MANY_REQUESTS) {
-            return PushResult.ServerError(detail)
+        if (code >= HttpURLConnection.HTTP_INTERNAL_ERROR || code == HTTP_TOO_MANY_REQUESTS || code < 400) {
+            return PushResult.ServerError(detail) // includes a 2xx with an unusable body
         }
         val reason = if (code == HttpURLConnection.HTTP_CONFLICT && error?.code == ErrorDto.CODE_INCIDENT_RESOLVED) {
             SyncError.Reason.RESOLVED_BY_OPERATOR
@@ -156,50 +171,45 @@ class IncidentSynchronizer @Inject constructor(
 
     // --- Pull ------------------------------------------------------------------------------------
 
+    private enum class PullResult { Done, NetworkError, ServerError }
+
     /**
      * Applies the server's list. Rows with local changes (PENDING or FAILED) are never touched, so
-     * the user's work is never lost to a pull. Returns false if the list couldn't be fetched for a
-     * reason worth retrying.
+     * the user's work is never lost to a pull.
      */
-    private suspend fun pull(): Boolean {
+    private suspend fun pull(): PullResult {
         val remote = try {
             api.getIncidents()
         } catch (_: IOException) {
-            return false
+            return PullResult.NetworkError
         } catch (e: HttpException) {
-            return e.code() < HttpURLConnection.HTTP_INTERNAL_ERROR && e.code() != HTTP_TOO_MANY_REQUESTS
+            val retryable = e.code() >= HttpURLConnection.HTTP_INTERNAL_ERROR || e.code() == HTTP_TOO_MANY_REQUESTS
+            return if (retryable) PullResult.ServerError else PullResult.Done
         } catch (_: SerializationException) {
-            return true // a malformed response won't fix itself by retrying
+            return PullResult.ServerError
         }
 
         val obsoletePhotos = transaction {
-            val syncStateById = dao.getSyncStates().associate { it.id to it.syncState }
+            val localById = dao.getAll().associateBy { it.incident.id }
             val obsolete = mutableListOf<IncidentPhotoEntity>()
             val remoteIds = mutableSetOf<String>()
 
             for (dto in remote) {
                 remoteIds += dto.id
                 val server = mapper.toServerContent(dto) ?: continue
-                when (syncStateById[dto.id]) {
+                val local = localById[dto.id]
+                when (local?.incident?.syncState) {
                     null -> {
                         dao.insert(server.incident)
                         dao.insertPhotos(server.photos)
                     }
 
                     SyncState.SYNCED -> {
-                        val local = dao.getById(dto.id) ?: continue
-                        val updated = server.incident.copy(
-                            localVersion = local.incident.localVersion,
-                            syncedVersion = local.incident.syncedVersion,
-                        )
-                        // Keep files already on this device (offline thumbnails).
-                        val localPathById = local.photos.associate { it.id to it.localPath }
-                        val photos = server.photos.map { it.copy(localPath = localPathById[it.id]) }
-                        if (updated != local.incident || photos != local.orderedPhotos) {
-                            dao.update(updated)
-                            dao.replacePhotos(dto.id, photos)
-                            val serverPhotoIds = photos.map { it.id }.toSet()
-                            obsolete += local.photos.filterNot { it.id in serverPhotoIds }
+                        val merge = mergeServerCopy(local, server, local.incident.updatedFromServer(server.incident))
+                        if (merge.incident != local.incident || merge.photos != local.orderedPhotos) {
+                            dao.update(merge.incident)
+                            dao.replacePhotos(dto.id, merge.photos)
+                            obsolete += merge.obsoletePhotos
                         }
                     }
 
@@ -208,16 +218,16 @@ class IncidentSynchronizer @Inject constructor(
             }
 
             // Synced rows the server no longer has were deleted elsewhere.
-            syncStateById
-                .filter { (id, state) -> state == SyncState.SYNCED && id !in remoteIds }
-                .forEach { (id, _) ->
-                    dao.getById(id)?.let { obsolete += it.photos }
-                    dao.deleteById(id)
+            localById.values
+                .filter { it.incident.syncState == SyncState.SYNCED && it.incident.id !in remoteIds }
+                .forEach { row ->
+                    obsolete += row.photos
+                    dao.deleteById(row.incident.id)
                 }
             obsolete
         }
         photoStore.deleteLocalFiles(obsoletePhotos.asLocalPhotos())
-        return true
+        return PullResult.Done
     }
 
     private fun File.asMultipartPart(): MultipartBody.Part =

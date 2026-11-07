@@ -24,7 +24,7 @@ import kotlinx.coroutines.flow.update
 class FakeIncidentRepository(initial: List<Incident> = emptyList()) : IncidentRepository {
 
     private val incidents = MutableStateFlow(initial.associateBy { it.id })
-    private val undoDeadlines = MutableStateFlow<Map<String, Instant>>(emptyMap())
+    private val undoUntilById = MutableStateFlow<Map<String, Instant>>(emptyMap())
 
     /** What [discardLocalChanges] returns. */
     var discardResult: DiscardChangesResult = DiscardChangesResult.DISCARDED
@@ -49,8 +49,8 @@ class FakeIncidentRepository(initial: List<Incident> = emptyList()) : IncidentRe
     override fun observeIncident(id: String): Flow<Incident?> =
         incidents.map { map -> map[id]?.takeUnless { it.isPendingDelete } }
 
-    override fun observeUndoableDeletes(): Flow<List<Incident>> = combine(incidents, undoDeadlines) { map, deadlines ->
-        map.values.filter { it.isPendingDelete && it.id in deadlines }
+    override fun observeUndoableDeletes(): Flow<List<Incident>> = combine(incidents, undoUntilById) { map, undoable ->
+        map.values.filter { it.isPendingDelete && it.id in undoable }
     }.distinctUntilChanged()
 
     override suspend fun getIncident(id: String): Incident? = incidents.value[id]
@@ -83,7 +83,7 @@ class FakeIncidentRepository(initial: List<Incident> = emptyList()) : IncidentRe
 
     override suspend fun markDeleted(id: String, undoUntil: Instant): Boolean {
         val current = incidents.value[id] ?: return false
-        undoDeadlines.update { it + (id to undoUntil) }
+        undoUntilById.update { it + (id to undoUntil) }
         incidents.update {
             it + (id to current.copy(syncState = SyncState.PENDING, pendingOperation = PendingOperation.DELETE))
         }
@@ -93,14 +93,14 @@ class FakeIncidentRepository(initial: List<Incident> = emptyList()) : IncidentRe
     override suspend fun restoreDeleted(id: String): RestoreResult {
         val current = incidents.value[id]
         if (current == null || !current.isPendingDelete) return RestoreResult.TOO_LATE
-        undoDeadlines.update { it - id }
+        undoUntilById.update { it - id }
         incidents.update { it + (id to current.copy(pendingOperation = PendingOperation.UPDATE)) }
         return RestoreResult.RESTORED
     }
 
     override suspend fun commitDeletion(id: String) {
         committedDeleteIds += id
-        undoDeadlines.update { it - id }
+        undoUntilById.update { it - id }
     }
 
     override suspend fun retrySync(id: String) {
