@@ -10,7 +10,6 @@ android {
         applicationId = "com.akerusan.fieldincidentreporter"
         versionCode = 1
         versionName = "1.0"
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -40,6 +39,4 @@ dependencies {
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.androidx.work.runtime.ktx)
     ksp(libs.androidx.hilt.compiler)
-
-    testImplementation(libs.junit)
 }

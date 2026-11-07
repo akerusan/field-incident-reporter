@@ -21,8 +21,9 @@ import com.akerusan.fieldincidentreporter.core.model.IncidentPhoto
 import java.io.File
 
 /**
- * An incident photo. The local file is preferred when it exists, so photos taken on this device show
- * offline and before upload; otherwise the server copy is loaded.
+ * An incident photo. The local file is tried first, so photos taken on this device show offline and
+ * before upload; if it can't be loaded (it was cleaned up, for example), the server copy is. Coil
+ * does the file access off the main thread.
  */
 @Composable
 fun IncidentPhotoImage(
@@ -31,12 +32,11 @@ fun IncidentPhotoImage(
     contentDescription: String? = stringResource(R.string.photo_content_description),
     contentScale: ContentScale = ContentScale.Crop,
 ) {
-    val model: Any? = remember(photo) {
-        photo.localPath?.let(::File)?.takeIf { it.exists() } ?: photo.remoteUrl
-    }
-    var failed by remember(model) { mutableStateOf(model == null) }
+    val sources: List<Any> = remember(photo) { listOfNotNull(photo.localPath?.let(::File), photo.remoteUrl) }
+    var sourceIndex by remember(photo) { mutableStateOf(0) }
+    val model = sources.getOrNull(sourceIndex)
     Box(modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-        if (failed) {
+        if (model == null) {
             Icon(
                 imageVector = Icons.Outlined.BrokenImage,
                 contentDescription = stringResource(R.string.photo_unavailable),
@@ -47,7 +47,7 @@ fun IncidentPhotoImage(
                 model = model,
                 contentDescription = contentDescription,
                 contentScale = contentScale,
-                onError = { failed = true },
+                onError = { sourceIndex++ }, // next source, or the placeholder when none is left
                 modifier = Modifier.matchParentSize(),
             )
         }

@@ -1,18 +1,21 @@
 package com.akerusan.fieldincidentreporter.core.data.repository
 
+import com.akerusan.fieldincidentreporter.core.data.di.IoDispatcher
 import com.akerusan.fieldincidentreporter.core.data.mapper.IncidentMapper
 import com.akerusan.fieldincidentreporter.core.data.mapper.ServerIncident
 import com.akerusan.fieldincidentreporter.core.data.mapper.asLocalPhotos
 import com.akerusan.fieldincidentreporter.core.data.sync.deleted
 import com.akerusan.fieldincidentreporter.core.data.sync.deletionCommitted
 import com.akerusan.fieldincidentreporter.core.data.sync.edited
+import com.akerusan.fieldincidentreporter.core.data.sync.isBeingDeleted
 import com.akerusan.fieldincidentreporter.core.data.sync.isPendingDelete
-import com.akerusan.fieldincidentreporter.core.data.sync.mergeServerCopy
+import com.akerusan.fieldincidentreporter.core.data.sync.mergeServerPhotos
 import com.akerusan.fieldincidentreporter.core.data.sync.replacedByServerCopy
 import com.akerusan.fieldincidentreporter.core.data.sync.restored
 import com.akerusan.fieldincidentreporter.core.data.sync.retried
 import com.akerusan.fieldincidentreporter.core.database.DatabaseTransactionRunner
 import com.akerusan.fieldincidentreporter.core.database.dao.IncidentDao
+import com.akerusan.fieldincidentreporter.core.database.entity.IncidentEntity
 import com.akerusan.fieldincidentreporter.core.domain.IncidentRepository
 import com.akerusan.fieldincidentreporter.core.domain.PhotoStore
 import com.akerusan.fieldincidentreporter.core.domain.SyncScheduler
@@ -21,7 +24,6 @@ import com.akerusan.fieldincidentreporter.core.domain.result.RestoreResult
 import com.akerusan.fieldincidentreporter.core.model.Incident
 import com.akerusan.fieldincidentreporter.core.model.IncidentDraft
 import com.akerusan.fieldincidentreporter.core.model.IncidentFilter
-import com.akerusan.fieldincidentreporter.core.model.PendingOperation
 import com.akerusan.fieldincidentreporter.core.model.SyncState
 import com.akerusan.fieldincidentreporter.core.network.IncidentApi
 import java.io.IOException
@@ -29,8 +31,11 @@ import java.net.HttpURLConnection
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.SerializationException
 
 /**
  * Offline-first incidents: every write goes to the local database in one transaction, applying the
@@ -46,16 +51,19 @@ class OfflineFirstIncidentRepository @Inject constructor(
     private val mapper: IncidentMapper,
     private val photoStore: PhotoStore,
     private val syncScheduler: SyncScheduler,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : IncidentRepository {
 
+    // Mapping runs off the main thread: collectors (ViewModels) would otherwise do it there.
+
     override fun observeIncidents(filter: IncidentFilter): Flow<List<Incident>> =
-        dao.observeVisible(filter.status).map { rows -> rows.map(mapper::toDomain) }
+        dao.observeVisible(filter.status).map { rows -> rows.map(mapper::toDomain) }.flowOn(ioDispatcher)
 
     override fun observeIncident(id: String): Flow<Incident?> =
-        dao.observeVisibleById(id).map { row -> row?.let(mapper::toDomain) }
+        dao.observeVisibleById(id).map { row -> row?.let(mapper::toDomain) }.flowOn(ioDispatcher)
 
     override fun observeUndoableDeletes(): Flow<List<Incident>> =
-        dao.observeUndoableDeletes().map { rows -> rows.map(mapper::toDomain) }
+        dao.observeUndoableDeletes().map { rows -> rows.map(mapper::toDomain) }.flowOn(ioDispatcher)
 
     override suspend fun getIncident(id: String): Incident? = dao.getById(id)?.let(mapper::toDomain)
 
@@ -67,10 +75,11 @@ class OfflineFirstIncidentRepository @Inject constructor(
         syncScheduler.requestSync()
     }
 
+    /** Returns false if the incident doesn't exist or is being deleted (there is nothing to edit). */
     override suspend fun updateIncident(id: String, draft: IncidentDraft, updatedAt: Instant): Boolean {
         val updated = transaction {
-            val row = dao.getById(id) ?: return@transaction false
-            if (row.incident.isPendingDelete) return@transaction false // being deleted: nothing to edit
+            val row = dao.getById(id)
+            if (row == null || row.incident.isBeingDeleted) return@transaction false
             dao.update(row.incident.edited(draft, updatedAt))
             dao.replacePhotos(id, mapper.toPhotoEntities(id, draft.photos, existing = row.photos))
             true
@@ -79,44 +88,52 @@ class OfflineFirstIncidentRepository @Inject constructor(
         return updated
     }
 
-    /** No sync is requested: the delete waits for the undo window to close (see [commitDeletion]). */
-    override suspend fun markDeleted(id: String, undoUntil: Instant): Boolean = transaction {
-        val row = dao.getById(id) ?: return@transaction false
-        // A second delete (for example a double tap) is a no-op, not an error.
-        if (row.incident.pendingOperation != PendingOperation.DELETE) dao.update(row.incident.deleted(undoUntil))
-        true
+    /**
+     * One undo at a time: deleting closes the undo window of any earlier delete, which is then sent
+     * right away. The new delete itself waits for its own window (see [commitDeletion]). Deleting an
+     * incident that is already being deleted is a no-op.
+     */
+    override suspend fun markDeleted(id: String, undoUntil: Instant): Boolean {
+        var closedOtherWindows = false
+        val found = transaction {
+            val incident = dao.getById(id)?.incident ?: return@transaction false
+            if (!incident.isBeingDeleted) {
+                closedOtherWindows = dao.closeUndoWindows() > 0
+                dao.update(incident.deleted(undoUntil))
+            }
+            true
+        }
+        if (closedOtherWindows) syncScheduler.requestSync()
+        return found
     }
 
     override suspend fun restoreDeleted(id: String): RestoreResult {
-        val restored = transaction {
-            val incident = dao.getById(id)?.incident
-            if (incident == null || !incident.isPendingDelete) return@transaction false
-            dao.update(incident.restored())
-            true
-        }
-        if (!restored) return RestoreResult.TOO_LATE
-        syncScheduler.requestSync()
-        return RestoreResult.RESTORED
+        val restored = applyTransition(id, guard = { it.isPendingDelete }, transition = IncidentEntity::restored)
+        return if (restored) RestoreResult.RESTORED else RestoreResult.TOO_LATE
     }
 
     override suspend fun commitDeletion(id: String) {
-        val committed = transaction {
-            val incident = dao.getById(id)?.incident
-            if (incident == null || !incident.isPendingDelete) return@transaction false
-            dao.update(incident.deletionCommitted())
-            true
-        }
-        if (committed) syncScheduler.requestSync()
+        applyTransition(id, guard = { it.isPendingDelete }, transition = IncidentEntity::deletionCommitted)
     }
 
     override suspend fun retrySync(id: String) {
-        val retried = transaction {
+        applyTransition(id, guard = { it.syncState == SyncState.FAILED }, transition = IncidentEntity::retried)
+    }
+
+    /** Applies [transition] to the row if [guard] allows it, then schedules a sync. Returns whether it applied. */
+    private suspend fun applyTransition(
+        id: String,
+        guard: (IncidentEntity) -> Boolean,
+        transition: (IncidentEntity) -> IncidentEntity,
+    ): Boolean {
+        val applied = transaction {
             val incident = dao.getById(id)?.incident
-            if (incident == null || incident.syncState != SyncState.FAILED) return@transaction false
-            dao.update(incident.retried())
+            if (incident == null || !guard(incident)) return@transaction false
+            dao.update(transition(incident))
             true
         }
-        if (retried) syncScheduler.requestSync()
+        if (applied) syncScheduler.requestSync()
+        return applied
     }
 
     override suspend fun discardLocalChanges(id: String): DiscardChangesResult {
@@ -124,10 +141,13 @@ class OfflineFirstIncidentRepository @Inject constructor(
         if (row == null || row.incident.syncState != SyncState.FAILED) {
             return DiscardChangesResult.NOTHING_TO_DISCARD
         }
+
         // Asked even for a create the server never confirmed: its PUT may have arrived anyway.
         val response = try {
             api.getIncident(id)
         } catch (_: IOException) {
+            return DiscardChangesResult.NEEDS_CONNECTION
+        } catch (_: SerializationException) {
             return DiscardChangesResult.NEEDS_CONNECTION
         }
         return when {
@@ -148,17 +168,17 @@ class OfflineFirstIncidentRepository @Inject constructor(
 
     /** Overwrites a failed row with the server's version. Skipped if the user changed the row meanwhile. */
     private suspend fun replaceWithServerCopy(expectedVersion: Long, server: ServerIncident): DiscardChangesResult {
-        val removedPhotos = transaction {
+        val obsoletePhotos = transaction {
             val current = dao.getById(server.incident.id)
             if (current == null || current.incident.localVersion != expectedVersion) {
                 return@transaction null
             }
-            val merge = mergeServerCopy(current, server, current.incident.replacedByServerCopy(server.incident))
-            dao.update(merge.incident)
+            val merge = mergeServerPhotos(current, server)
+            dao.update(current.incident.replacedByServerCopy(server.incident))
             dao.replacePhotos(server.incident.id, merge.photos)
             merge.obsoletePhotos
         } ?: return DiscardChangesResult.NOTHING_TO_DISCARD
-        photoStore.deleteLocalFiles(removedPhotos.asLocalPhotos())
+        photoStore.deleteLocalFiles(obsoletePhotos.asLocalPhotos())
         return DiscardChangesResult.DISCARDED
     }
 

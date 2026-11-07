@@ -36,16 +36,17 @@ class SyncWorkerTest {
     }
 
     @Test
-    fun `on the last attempt the change is marked failed and the work succeeds`() = runTest {
+    fun `repeated server errors mark the change failed, even when each run is a fresh work request`() = runTest {
         env.dao.insert(
             entity(syncState = SyncState.PENDING, pendingOperation = PendingOperation.UPDATE, localVersion = 2),
         )
         env.respond("PUT", "/incidents/incident-1", 503)
         env.respond("GET", "/incidents", 200, "[]")
 
-        val result = worker(runAttemptCount = SyncWorker.MAX_SYNC_ATTEMPTS - 1).doWork()
+        // runAttemptCount = 0 every time, as after a reschedule: the count on the row still adds up.
+        val results = List(IncidentSynchronizer.MAX_SERVER_ERRORS) { worker(runAttemptCount = 0).doWork() }
 
-        assertEquals(ListenableWorker.Result.success(), result) // never failure(): it would cancel queued syncs
+        assertEquals(ListenableWorker.Result.success(), results.last()) // never failure()
         assertEquals(SyncState.FAILED, checkNotNull(env.dao.getById("incident-1")).incident.syncState)
     }
 
@@ -55,10 +56,10 @@ class SyncWorkerTest {
             .setWorkerFactory(
                 object : WorkerFactory() {
                     override fun createWorker(
-                        context: Context,
+                        appContext: Context,
                         workerClassName: String,
                         workerParameters: WorkerParameters,
-                    ) = SyncWorker(context, workerParameters, env.synchronizer)
+                    ) = SyncWorker(appContext, workerParameters, env.synchronizer)
                 },
             )
             .build()

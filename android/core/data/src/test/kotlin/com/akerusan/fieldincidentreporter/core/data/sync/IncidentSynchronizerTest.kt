@@ -50,7 +50,7 @@ class IncidentSynchronizerTest {
             "[${incidentJson(photos = """[{"id":"p1","path":"/uploads/p1.jpg"}]""")}]",
         )
 
-        assertEquals(Outcome.SUCCESS, env.synchronizer.sync(isLastAttempt = false))
+        assertEquals(Outcome.SUCCESS, env.synchronizer.sync())
 
         assertEquals(listOf("POST /uploads", "PUT /incidents/incident-1", "GET /incidents"), env.requests)
         val row = checkNotNull(dao.getById("incident-1"))
@@ -70,7 +70,7 @@ class IncidentSynchronizerTest {
             MockResponse.Builder().code(201).build()
         }
 
-        env.synchronizer.sync(isLastAttempt = false)
+        env.synchronizer.sync()
 
         val afterFirstSync = checkNotNull(dao.getById("incident-1")).incident
         assertEquals(SyncState.PENDING, afterFirstSync.syncState)
@@ -79,7 +79,7 @@ class IncidentSynchronizerTest {
 
         env.respond("PUT", "/incidents/incident-1", 200)
         env.respond("GET", "/incidents", 200, "[${incidentJson(title = "Edited")}]")
-        env.synchronizer.sync(isLastAttempt = false)
+        env.synchronizer.sync()
 
         val afterSecondSync = checkNotNull(dao.getById("incident-1")).incident
         assertEquals(SyncState.SYNCED, afterSecondSync.syncState)
@@ -93,7 +93,7 @@ class IncidentSynchronizerTest {
         env.respond("PUT", "/incidents/incident-1", 409, """{"code":"INCIDENT_RESOLVED","message":"Resolved"}""")
         env.respond("GET", "/incidents", 200, "[]")
 
-        assertEquals(Outcome.SUCCESS, env.synchronizer.sync(isLastAttempt = false))
+        assertEquals(Outcome.SUCCESS, env.synchronizer.sync())
 
         val row = checkNotNull(dao.getById("incident-1")).incident
         assertEquals(SyncState.FAILED, row.syncState)
@@ -112,7 +112,7 @@ class IncidentSynchronizerTest {
         )
         env.respond("GET", "/incidents", 200, "[]")
 
-        env.synchronizer.sync(isLastAttempt = false)
+        env.synchronizer.sync()
 
         val row = checkNotNull(dao.getById("incident-1")).incident
         assertEquals(SyncError.Reason.REJECTED_BY_SERVER, row.syncErrorReason)
@@ -120,18 +120,35 @@ class IncidentSynchronizerTest {
     }
 
     @Test
-    fun `a server error is retried, and marked failed only on the last attempt`() = runTest {
+    fun `a server error is retried, and the change marked failed after repeated server errors`() = runTest {
         dao.insert(entity(syncState = SyncState.PENDING, pendingOperation = PendingOperation.UPDATE, localVersion = 2))
         env.respond("PUT", "/incidents/incident-1", 503)
         env.respond("GET", "/incidents", 200, "[]")
 
-        assertEquals(Outcome.RETRY, env.synchronizer.sync(isLastAttempt = false))
-        assertEquals(SyncState.PENDING, checkNotNull(dao.getById("incident-1")).incident.syncState)
+        repeat(IncidentSynchronizer.MAX_SERVER_ERRORS - 1) {
+            assertEquals(Outcome.RETRY, env.synchronizer.sync())
+            assertEquals(SyncState.PENDING, checkNotNull(dao.getById("incident-1")).incident.syncState)
+        }
 
-        assertEquals(Outcome.SUCCESS, env.synchronizer.sync(isLastAttempt = true))
+        assertEquals(Outcome.SUCCESS, env.synchronizer.sync())
         val row = checkNotNull(dao.getById("incident-1")).incident
         assertEquals(SyncState.FAILED, row.syncState)
         assertEquals(SyncError.Reason.SERVER_ERROR, row.syncErrorReason)
+    }
+
+    @Test
+    fun `a user edit starts the server-error count again`() = runTest {
+        dao.insert(entity(syncState = SyncState.PENDING, pendingOperation = PendingOperation.UPDATE, localVersion = 2))
+        env.respond("PUT", "/incidents/incident-1", 503)
+        env.respond("GET", "/incidents", 200, "[]")
+        repeat(IncidentSynchronizer.MAX_SERVER_ERRORS - 1) { env.synchronizer.sync() }
+
+        env.repository.updateIncident("incident-1", testDraft(title = "Edited"), env.clock.now())
+        env.synchronizer.sync()
+
+        val row = checkNotNull(dao.getById("incident-1")).incident
+        assertEquals(SyncState.PENDING, row.syncState)
+        assertEquals(1, row.serverErrorCount)
     }
 
     @Test
@@ -156,7 +173,7 @@ class IncidentSynchronizerTest {
         env.respond("PUT", "/incidents/b", 200)
         env.respond("GET", "/incidents", 200, "[${incidentJson(id = "a")},${incidentJson(id = "b")}]")
 
-        assertEquals(Outcome.RETRY, env.synchronizer.sync(isLastAttempt = false))
+        assertEquals(Outcome.RETRY, env.synchronizer.sync())
 
         assertEquals(SyncState.PENDING, checkNotNull(dao.getById("a")).incident.syncState)
         assertEquals(SyncState.SYNCED, checkNotNull(dao.getById("b")).incident.syncState)
@@ -167,7 +184,7 @@ class IncidentSynchronizerTest {
         dao.insert(entity(syncState = SyncState.PENDING, pendingOperation = PendingOperation.UPDATE, localVersion = 2))
         env.goOffline()
 
-        assertEquals(Outcome.RETRY, env.synchronizer.sync(isLastAttempt = true))
+        assertEquals(Outcome.RETRY, env.synchronizer.sync())
 
         val row = checkNotNull(dao.getById("incident-1")).incident
         assertEquals(SyncState.PENDING, row.syncState) // network errors never mark a change failed
@@ -181,7 +198,7 @@ class IncidentSynchronizerTest {
         env.repository.markDeleted("incident-1", undoUntil = env.clock.now().plusSeconds(30))
         env.respond("GET", "/incidents", 200, "[${incidentJson()}]")
 
-        env.synchronizer.sync(isLastAttempt = false)
+        env.synchronizer.sync()
 
         assertEquals(listOf("GET /incidents"), env.requests)
         assertEquals(PendingOperation.DELETE, checkNotNull(dao.getById("incident-1")).incident.pendingOperation)
@@ -196,7 +213,7 @@ class IncidentSynchronizerTest {
         env.respond("DELETE", "/incidents/incident-1", 200)
         env.respond("GET", "/incidents", 200, "[]")
 
-        env.synchronizer.sync(isLastAttempt = false)
+        env.synchronizer.sync()
 
         assertTrue("DELETE /incidents/incident-1" in env.requests)
         assertNull(dao.getById("incident-1"))
@@ -211,7 +228,7 @@ class IncidentSynchronizerTest {
         env.respond("DELETE", "/incidents/incident-1", 404) // already gone counts as done
         env.respond("GET", "/incidents", 200, "[]")
 
-        env.synchronizer.sync(isLastAttempt = false)
+        env.synchronizer.sync()
 
         assertNull(dao.getById("incident-1"))
     }
@@ -227,7 +244,7 @@ class IncidentSynchronizerTest {
             env.respond("DELETE", "/incidents/incident-1", 200) // it did arrive: the response had been lost
             env.respond("GET", "/incidents", 200, "[]")
 
-            env.synchronizer.sync(isLastAttempt = false)
+            env.synchronizer.sync()
 
             assertEquals(listOf("DELETE /incidents/incident-1", "GET /incidents"), env.requests)
             assertNull(dao.getById("incident-1"))
@@ -239,7 +256,7 @@ class IncidentSynchronizerTest {
         dao.insertPhotos(listOf(photoEntity("lost", localPath = "/no/such/file.jpg")))
         env.respond("GET", "/incidents", 200, "[]")
 
-        env.synchronizer.sync(isLastAttempt = false)
+        env.synchronizer.sync()
 
         val row = checkNotNull(dao.getById("incident-1"))
         assertEquals(SyncState.FAILED, row.incident.syncState)
@@ -256,16 +273,15 @@ class IncidentSynchronizerTest {
         env.respond("POST", "/uploads", 201, "<html>proxy error</html>")
         env.respond("GET", "/incidents", 200, "[]")
 
-        assertEquals(Outcome.RETRY, env.synchronizer.sync(isLastAttempt = false))
+        assertEquals(Outcome.RETRY, env.synchronizer.sync())
         assertEquals(SyncState.PENDING, checkNotNull(dao.getById("incident-1")).incident.syncState)
     }
 
     @Test
-    fun `a pull that keeps failing is given up on the last attempt, so the work can finish`() = runTest {
+    fun `a failing pull is retried`() = runTest {
         env.respond("GET", "/incidents", 503)
 
-        assertEquals(Outcome.RETRY, env.synchronizer.sync(isLastAttempt = false))
-        assertEquals(Outcome.SUCCESS, env.synchronizer.sync(isLastAttempt = true))
+        assertEquals(Outcome.RETRY, env.synchronizer.sync())
     }
 
     @Test
@@ -280,14 +296,14 @@ class IncidentSynchronizerTest {
             MockResponse.Builder().code(200).build()
         }
 
-        env.synchronizer.sync(isLastAttempt = false)
+        env.synchronizer.sync()
 
         val restored = checkNotNull(dao.getById("incident-1")).incident
         assertEquals(PendingOperation.UPDATE, restored.pendingOperation)
 
         env.respond("PUT", "/incidents/incident-1", 201)
         env.respond("GET", "/incidents", 200, "[${incidentJson()}]")
-        env.synchronizer.sync(isLastAttempt = false)
+        env.synchronizer.sync()
 
         assertTrue("PUT /incidents/incident-1" in env.requests)
         assertEquals(SyncState.SYNCED, checkNotNull(dao.getById("incident-1")).incident.syncState)
@@ -301,7 +317,7 @@ class IncidentSynchronizerTest {
         env.respond("DELETE", "/incidents/incident-1", 409, """{"code":"INCIDENT_RESOLVED","message":"Resolved"}""")
         env.respond("GET", "/incidents", 200, "[]")
 
-        env.synchronizer.sync(isLastAttempt = false)
+        env.synchronizer.sync()
 
         val row = checkNotNull(dao.getById("incident-1")).incident
         assertEquals(SyncState.FAILED, row.syncState)
@@ -315,7 +331,7 @@ class IncidentSynchronizerTest {
     fun `pull inserts new incidents as synced at version 1, so deleting one reaches the server`() = runTest {
         env.respond("GET", "/incidents", 200, "[${incidentJson(id = "seeded")}]")
 
-        env.synchronizer.sync(isLastAttempt = false)
+        env.synchronizer.sync()
 
         val pulled = checkNotNull(dao.getById("seeded")).incident
         assertEquals(SyncState.SYNCED, pulled.syncState)
@@ -326,7 +342,7 @@ class IncidentSynchronizerTest {
         env.repository.commitDeletion("seeded")
         env.respond("DELETE", "/incidents/seeded", 200)
         env.respond("GET", "/incidents", 200, "[]")
-        env.synchronizer.sync(isLastAttempt = false)
+        env.synchronizer.sync()
 
         assertTrue("DELETE /incidents/seeded" in env.requests)
     }
@@ -360,7 +376,7 @@ class IncidentSynchronizerTest {
             )},${incidentJson("pending", "Theirs")},${incidentJson("failed", "Theirs")}]",
         )
 
-        env.synchronizer.sync(isLastAttempt = false)
+        env.synchronizer.sync()
 
         val synced = checkNotNull(dao.getById("synced")).incident
         assertEquals("New", synced.title)
@@ -384,7 +400,7 @@ class IncidentSynchronizerTest {
         env.respond("PUT", "/incidents/not-sent-yet", 503)
         env.respond("GET", "/incidents", 200, "[]")
 
-        env.synchronizer.sync(isLastAttempt = false)
+        env.synchronizer.sync()
 
         assertNull(dao.getById("deleted-elsewhere"))
         assertEquals(listOf("p1"), env.photoStore.deletedPhotos.map { it.id })
@@ -400,7 +416,7 @@ class IncidentSynchronizerTest {
             "[${incidentJson(id = "future", status = "ARCHIVED")},${incidentJson(id = "ok")}]",
         )
 
-        assertEquals(Outcome.SUCCESS, env.synchronizer.sync(isLastAttempt = false))
+        assertEquals(Outcome.SUCCESS, env.synchronizer.sync())
 
         assertNull(dao.getById("future"))
         assertEquals(SyncState.SYNCED, checkNotNull(dao.getById("ok")).incident.syncState)

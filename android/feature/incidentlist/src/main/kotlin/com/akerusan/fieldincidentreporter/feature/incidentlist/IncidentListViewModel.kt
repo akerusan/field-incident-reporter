@@ -37,8 +37,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 class IncidentListViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     observeIncidents: ObserveIncidentsUseCase,
-    private val observePendingDeletes: ObservePendingDeletesUseCase,
-    private val observeConnectivity: ObserveConnectivityUseCase,
+    observePendingDeletes: ObservePendingDeletesUseCase,
+    observeConnectivity: ObserveConnectivityUseCase,
     private val observeSyncActivity: ObserveSyncActivityUseCase,
     private val refreshIncidents: RefreshIncidentsUseCase,
     private val restoreIncident: RestoreIncidentUseCase,
@@ -73,15 +73,6 @@ class IncidentListViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), IncidentListUiState())
 
-    init {
-        // One undo snackbar at a time: a newer delete closes the undo window of older ones.
-        viewModelScope.launch {
-            observePendingDeletes().collect { pending ->
-                pending.drop(1).forEach { commitPendingDelete(it.id) }
-            }
-        }
-    }
-
     fun onStatusFilterSelected(status: IncidentStatus?) {
         savedStateHandle[KEY_STATUS_FILTER] = status
     }
@@ -94,7 +85,7 @@ class IncidentListViewModel @Inject constructor(
         if (refreshJob?.isActive == true) return
         refreshJob = viewModelScope.launch {
             refreshIncidents()
-            if (!observeConnectivity().first()) {
+            if (!uiState.value.isOnline) {
                 messageChannel.send(IncidentListMessage.WILL_SYNC_WHEN_ONLINE)
                 return@launch
             }

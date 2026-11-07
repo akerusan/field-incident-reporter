@@ -21,6 +21,9 @@ data class Incident(
     /** Resolved incidents belong to the operator; the technician can only view them. */
     val isReadOnly: Boolean get() = status == IncidentStatus.RESOLVED
 
+    /** Deleted by the user: waiting to be sent (hidden from lists), or refused by the server. */
+    val isBeingDeleted: Boolean get() = pendingOperation == PendingOperation.DELETE
+
     /** A delete the server refused; shown so the user can retry or discard it. */
     val isFailedDelete: Boolean
         get() = syncState == SyncState.FAILED && pendingOperation == PendingOperation.DELETE

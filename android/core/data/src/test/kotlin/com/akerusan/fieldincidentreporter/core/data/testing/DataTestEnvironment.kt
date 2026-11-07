@@ -9,21 +9,19 @@ import com.akerusan.fieldincidentreporter.core.database.DatabaseTransactionRunne
 import com.akerusan.fieldincidentreporter.core.database.FirDatabase
 import com.akerusan.fieldincidentreporter.core.network.ApiErrorParser
 import com.akerusan.fieldincidentreporter.core.network.IncidentApi
+import com.akerusan.fieldincidentreporter.core.network.NetworkFactory
 import com.akerusan.fieldincidentreporter.core.network.RemotePathResolver
 import com.akerusan.fieldincidentreporter.core.testing.FakeClock
 import com.akerusan.fieldincidentreporter.core.testing.FakePhotoStore
 import com.akerusan.fieldincidentreporter.core.testing.FakeSyncScheduler
 import java.io.Closeable
 import java.util.concurrent.CopyOnWriteArrayList
-import kotlinx.serialization.json.Json
+import kotlinx.coroutines.Dispatchers
 import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import mockwebserver3.RecordedRequest
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import retrofit2.Retrofit
-import retrofit2.converter.kotlinx.serialization.asConverterFactory
 
 /**
  * The real repository and synchronizer wired to an in-memory database and a scripted mock server.
@@ -53,18 +51,21 @@ class DataTestEnvironment : Closeable {
         start()
     }
 
-    private val json = Json { ignoreUnknownKeys = true }
-    private val api: IncidentApi = Retrofit.Builder()
-        .baseUrl(server.url("/"))
-        .client(OkHttpClient())
-        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
-        .build()
-        .create(IncidentApi::class.java)
+    private val json = NetworkFactory.json() // the production settings
+    private val api: IncidentApi = NetworkFactory.incidentApi(server.url("/").toString(), OkHttpClient(), json)
 
     val mapper = IncidentMapper(RemotePathResolver(server.url("/").toString()))
     private val transaction = DatabaseTransactionRunner(database)
 
-    val repository = OfflineFirstIncidentRepository(dao, transaction, api, mapper, photoStore, syncScheduler)
+    val repository = OfflineFirstIncidentRepository(
+        dao,
+        transaction,
+        api,
+        mapper,
+        photoStore,
+        syncScheduler,
+        ioDispatcher = Dispatchers.IO,
+    )
     val synchronizer = IncidentSynchronizer(dao, transaction, api, mapper, ApiErrorParser(json), photoStore, clock)
 
     /** Answers `METHOD /path` with [handler]. The handler runs on the server's thread. */

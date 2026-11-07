@@ -98,7 +98,10 @@ class IncidentMapper @Inject constructor(private val remotePathResolver: RemoteP
 
     // --- API <-> database ------------------------------------------------------------------------
 
-    /** The request body for `PUT /incidents/{id}`. Only photos with a server path are included. */
+    /**
+     * The request body for `PUT /incidents/{id}`. [photos] are in display order
+     * (`IncidentWithPhotos.orderedPhotos`); only those with a server path are included.
+     */
     fun toDto(incident: IncidentEntity, photos: List<IncidentPhotoEntity>): IncidentDto = IncidentDto(
         id = incident.id,
         title = incident.title,
@@ -107,7 +110,7 @@ class IncidentMapper @Inject constructor(private val remotePathResolver: RemoteP
         severity = incident.severity.name,
         status = incident.status.name,
         locationNote = incident.locationNote,
-        photos = photos.sortedBy { it.position }.mapNotNull { photo ->
+        photos = photos.mapNotNull { photo ->
             photo.remotePath?.let { PhotoDto(id = photo.id, path = it) }
         },
         reportedAt = incident.reportedAt.toString(),

@@ -60,7 +60,8 @@ class FakeIncidentRepository(initial: List<Incident> = emptyList()) : IncidentRe
     }
 
     override suspend fun updateIncident(id: String, draft: IncidentDraft, updatedAt: Instant): Boolean {
-        val current = incidents.value[id] ?: return false
+        val current = incidents.value[id]
+        if (current == null || current.isBeingDeleted) return false
         incidents.update {
             it + (
                 id to current.copy(
@@ -83,7 +84,10 @@ class FakeIncidentRepository(initial: List<Incident> = emptyList()) : IncidentRe
 
     override suspend fun markDeleted(id: String, undoUntil: Instant): Boolean {
         val current = incidents.value[id] ?: return false
-        undoUntilById.update { it + (id to undoUntil) }
+        if (current.isBeingDeleted) return true
+        // One undo at a time: earlier deletes are committed.
+        committedDeleteIds += undoUntilById.value.keys
+        undoUntilById.value = mapOf(id to undoUntil)
         incidents.update {
             it + (id to current.copy(syncState = SyncState.PENDING, pendingOperation = PendingOperation.DELETE))
         }
@@ -110,5 +114,5 @@ class FakeIncidentRepository(initial: List<Incident> = emptyList()) : IncidentRe
     override suspend fun discardLocalChanges(id: String): DiscardChangesResult = discardResult
 
     private val Incident.isPendingDelete: Boolean
-        get() = syncState == SyncState.PENDING && pendingOperation == PendingOperation.DELETE
+        get() = syncState == SyncState.PENDING && isBeingDeleted
 }

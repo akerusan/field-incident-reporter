@@ -10,30 +10,32 @@ import java.time.Instant
  * The sync state machine: how each user action changes a row's sync state. These are pure
  * functions, applied by the repository inside a transaction, and unit-tested row by row.
  *
- * Every user write increments `localVersion` (it never goes back). The sync confirms a write only
- * if `localVersion` still matches what it sent; see IncidentDao.markSynced.
+ * Every user write increments `localVersion` (it never goes back) and clears the error state,
+ * including the server-error count. The sync confirms a write only if `localVersion` still matches
+ * what it sent; see IncidentDao.markSynced.
  *
- * | Current (state / op)        | Action    | Result                                              |
- * |-----------------------------|-----------|-----------------------------------------------------|
- * | SYNCED                      | edit      | PENDING / UPDATE                                    |
- * | PENDING / CREATE or UPDATE  | edit      | unchanged operation                                 |
- * | FAILED / CREATE or UPDATE   | edit      | PENDING / CREATE if never synced, else UPDATE       |
- * | operation DELETE            | edit      | rejected                                            |
- * | operation not DELETE        | delete    | PENDING / DELETE, undoable until `undoUntil`        |
- * | PENDING / DELETE            | undo      | PENDING / CREATE if never synced, else UPDATE       |
- * | PENDING / DELETE            | commit    | undo window closed (`deleteAfter = null`)           |
- * | FAILED / any                | retry     | PENDING / same operation                            |
- * | FAILED / any                | discard   | SYNCED with the server's copy; version still grows  |
- * | SYNCED                      | pull      | the server's content; versions unchanged            |
+ * | Current (state / op)        | Action          | Result                                        |
+ * |-----------------------------|-----------------|-----------------------------------------------|
+ * | SYNCED                      | edit            | PENDING / UPDATE                              |
+ * | PENDING / CREATE or UPDATE  | edit            | unchanged operation                           |
+ * | FAILED / CREATE or UPDATE   | edit            | PENDING / CREATE if never synced, else UPDATE |
+ * | operation DELETE            | edit            | not allowed (the repository refuses it)       |
+ * | operation not DELETE        | delete          | PENDING / DELETE, undoable until `undoUntil`  |
+ * | PENDING / DELETE            | undo            | PENDING / CREATE if never synced, else UPDATE |
+ * | PENDING / DELETE            | commit          | undo window closed (`deleteAfter = null`)     |
+ * | FAILED / any                | retry           | PENDING / same operation                      |
+ * | FAILED / any                | discard (200)   | SYNCED with the server's copy                 |
+ * | FAILED / any                | discard (404)   | removed locally (the server doesn't have it)  |
+ * | SYNCED                      | pull            | the server's content; versions unchanged      |
  */
 
-/** The operation that recreates this row's content on the server. */
+/** The operation that recreates this row's content on the server. Both are the same idempotent PUT. */
 private val IncidentEntity.createOrUpdate: PendingOperation
     get() = if (syncedVersion == 0L) PendingOperation.CREATE else PendingOperation.UPDATE
 
 /** Applies the user's edit: new content, then the pending operation it requires. */
 internal fun IncidentEntity.edited(draft: IncidentDraft, updatedAt: Instant): IncidentEntity {
-    check(pendingOperation != PendingOperation.DELETE) { "Incident $id is being deleted and can't be edited" }
+    check(!isBeingDeleted) { "Incident $id is being deleted and can't be edited" }
     val operation = when (syncState) {
         SyncState.SYNCED -> PendingOperation.UPDATE
         SyncState.PENDING -> checkNotNull(pendingOperation)
@@ -49,36 +51,26 @@ internal fun IncidentEntity.edited(draft: IncidentDraft, updatedAt: Instant): In
         updatedAt = updatedAt,
         syncState = SyncState.PENDING,
         pendingOperation = operation,
-        localVersion = localVersion + 1,
-        syncErrorReason = null,
-        syncErrorDetail = null,
-    )
+    ).userWrite()
 }
 
 /** Marks the row deleted; it stays hidden but undoable until [undoUntil] or until committed. */
 internal fun IncidentEntity.deleted(undoUntil: Instant): IncidentEntity {
-    check(pendingOperation != PendingOperation.DELETE) { "Incident $id is already being deleted" }
+    check(!isBeingDeleted) { "Incident $id is already being deleted" }
     return copy(
         syncState = SyncState.PENDING,
         pendingOperation = PendingOperation.DELETE,
         deleteAfter = undoUntil,
-        localVersion = localVersion + 1,
-        syncErrorReason = null,
-        syncErrorDetail = null,
-    )
+    ).userWrite()
 }
 
 /**
- * Undoes a pending delete. If the server already saw the row, it is re-sent as an UPDATE: harmless
- * if the delete never went out (PUT is idempotent), and it recreates the incident if it did.
+ * Undoes a pending delete by sending the incident again (a PUT): harmless if the delete never went
+ * out, and it recreates the incident if it did.
  */
 internal fun IncidentEntity.restored(): IncidentEntity {
     check(isPendingDelete) { "Incident $id has no pending delete to undo" }
-    return copy(
-        pendingOperation = createOrUpdate,
-        deleteAfter = null,
-        localVersion = localVersion + 1,
-    )
+    return copy(pendingOperation = createOrUpdate, deleteAfter = null).userWrite()
 }
 
 /** Closes the undo window so the next sync sends the delete. Not a content change: no version bump. */
@@ -90,19 +82,8 @@ internal fun IncidentEntity.deletionCommitted(): IncidentEntity {
 /** Queues a failed change again. */
 internal fun IncidentEntity.retried(): IncidentEntity {
     check(syncState == SyncState.FAILED) { "Incident $id has no failed change to retry" }
-    return copy(
-        syncState = SyncState.PENDING,
-        localVersion = localVersion + 1,
-        syncErrorReason = null,
-        syncErrorDetail = null,
-    )
+    return copy(syncState = SyncState.PENDING).userWrite()
 }
-
-internal val IncidentEntity.isPendingDelete: Boolean
-    get() = syncState == SyncState.PENDING && pendingOperation == PendingOperation.DELETE
-
-internal val IncidentEntity.isUndoableDelete: Boolean
-    get() = isPendingDelete && deleteAfter != null
 
 /**
  * Discards a failed local change: the row becomes the server's copy [server], confirmed. The
@@ -120,3 +101,19 @@ internal fun IncidentEntity.updatedFromServer(server: IncidentEntity): IncidentE
     check(syncState == SyncState.SYNCED) { "Incident $id has local changes the pull must not overwrite" }
     return server.copy(localVersion = localVersion, syncedVersion = syncedVersion)
 }
+
+/** A user write: a new version, and no leftover error from the previous attempt. */
+private fun IncidentEntity.userWrite(): IncidentEntity = copy(
+    localVersion = localVersion + 1,
+    syncErrorReason = null,
+    syncErrorDetail = null,
+    serverErrorCount = 0,
+)
+
+/** Deleted by the user, whether the delete is still waiting or was refused (as `Incident.isBeingDeleted`). */
+internal val IncidentEntity.isBeingDeleted: Boolean
+    get() = pendingOperation == PendingOperation.DELETE
+
+/** A delete waiting to be sent (and, while `deleteAfter` is set, still undoable). */
+internal val IncidentEntity.isPendingDelete: Boolean
+    get() = syncState == SyncState.PENDING && isBeingDeleted

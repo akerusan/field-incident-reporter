@@ -21,8 +21,6 @@ class AndroidFeatureConventionPlugin : Plugin<Project> {
                 add("implementation", project(":core:domain"))
                 add("implementation", project(":core:designsystem"))
 
-                add("implementation", libs.library("androidx-compose-material3"))
-                add("implementation", libs.library("androidx-compose-material-icons-extended"))
                 add("implementation", libs.library("androidx-hilt-lifecycle-viewmodel-compose"))
                 add("implementation", libs.library("androidx-lifecycle-runtime-compose"))
                 add("implementation", libs.library("androidx-lifecycle-viewmodel-compose"))
@@ -31,7 +29,6 @@ class AndroidFeatureConventionPlugin : Plugin<Project> {
                 add("implementation", libs.library("kotlinx-serialization-json"))
 
                 add("testImplementation", project(":core:testing"))
-                add("testImplementation", libs.library("turbine"))
                 add("testImplementation", libs.library("robolectric"))
                 add("testImplementation", libs.library("androidx-compose-ui-test-junit4"))
                 add("debugImplementation", libs.library("androidx-compose-ui-test-manifest"))

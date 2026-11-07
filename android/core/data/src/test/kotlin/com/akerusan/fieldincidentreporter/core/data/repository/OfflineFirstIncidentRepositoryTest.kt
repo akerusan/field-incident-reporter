@@ -123,6 +123,19 @@ class OfflineFirstIncidentRepositoryTest {
     }
 
     @Test
+    fun `a newer delete closes the older one's undo window and sends it`() = runTest {
+        dao.insert(entity(id = "older"))
+        dao.insert(entity(id = "newer"))
+        repository.markDeleted("older", undoUntil = env.clock.now().plusSeconds(30))
+
+        repository.markDeleted("newer", undoUntil = env.clock.now().plusSeconds(30))
+
+        assertEquals(listOf("newer"), repository.observeUndoableDeletes().first().map { it.id })
+        assertNull(checkNotNull(dao.getById("older")).incident.deleteAfter)
+        assertEquals(1, env.syncScheduler.requestCount)
+    }
+
+    @Test
     fun `the status filter applies`() = runTest {
         dao.insert(entity(id = "open"))
         dao.insert(entity(id = "resolved", status = IncidentStatus.RESOLVED))

@@ -30,6 +30,4 @@ dependencies {
     api(libs.retrofit)
     implementation(libs.okhttp.logging.interceptor)
     implementation(libs.retrofit.kotlinx.serialization)
-
-    testImplementation(libs.okhttp.mockwebserver)
 }

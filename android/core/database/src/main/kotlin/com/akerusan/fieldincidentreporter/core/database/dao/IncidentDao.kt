@@ -5,7 +5,6 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
-import androidx.room.Upsert
 import com.akerusan.fieldincidentreporter.core.database.entity.IncidentEntity
 import com.akerusan.fieldincidentreporter.core.database.entity.IncidentPhotoEntity
 import com.akerusan.fieldincidentreporter.core.database.entity.IncidentWithPhotos
@@ -77,11 +76,17 @@ interface IncidentDao {
     @Update
     suspend fun update(incident: IncidentEntity)
 
-    @Upsert
-    suspend fun upsert(incident: IncidentEntity)
-
     @Query("DELETE FROM incidents WHERE id = :id")
     suspend fun deleteById(id: String)
+
+    /** Ends the undo window of every pending delete, so the next sync sends them. Returns how many. */
+    @Query(
+        """
+        UPDATE incidents SET delete_after = NULL
+        WHERE sync_state = 'PENDING' AND pending_operation IS 'DELETE' AND delete_after IS NOT NULL
+        """,
+    )
+    suspend fun closeUndoWindows(): Int
 
     @Insert
     suspend fun insertPhotos(photos: List<IncidentPhotoEntity>)
@@ -107,7 +112,7 @@ interface IncidentDao {
         """
         UPDATE incidents
         SET sync_state = 'SYNCED', pending_operation = NULL, synced_version = :version,
-            sync_error_reason = NULL, sync_error_detail = NULL
+            sync_error_reason = NULL, sync_error_detail = NULL, server_error_count = 0
         WHERE id = :id AND local_version = :version
         """,
     )
@@ -122,6 +127,15 @@ interface IncidentDao {
         """,
     )
     suspend fun markFailed(id: String, version: Long, reason: SyncError.Reason, detail: String?): Int
+
+    /** Counts one more server error for the change being sent. A sync-side write: no version bump. */
+    @Query(
+        """
+        UPDATE incidents SET server_error_count = server_error_count + 1
+        WHERE id = :id AND local_version = :version
+        """,
+    )
+    suspend fun recordServerError(id: String, version: Long): Int
 
     @Query("DELETE FROM incidents WHERE id = :id AND local_version = :version")
     suspend fun deleteIfVersion(id: String, version: Long): Int

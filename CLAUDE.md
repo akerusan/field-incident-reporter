@@ -70,6 +70,11 @@ Sync invariants (break these and the integration tests in `core/data` should fai
   confirmations are conditional on the version that was sent (`IncidentDao.markSynced`,
   `deleteIfVersion`, `markFailed`).
 - The pull never overwrites PENDING or FAILED rows; rows inserted by the pull get version 1/1.
-- One unique work name only; `SyncWorker` returns success or retry, never failure.
+- One unique work name only (`WorkManagerSyncScheduler.policyFor`); `SyncWorker` returns success or
+  retry, never failure.
+- Retry limits are per row (`server_error_count`), never `runAttemptCount`: the scheduler replaces
+  waiting work, which resets WorkManager's counter.
+- "Being deleted" (`pendingOperation == DELETE`) is enforced in the repository; deletes are always
+  sent to the server, even for a create that was never confirmed.
 - Data tests use `DataTestEnvironment` (in-memory Room + MockWebServer). A mocked `GET /incidents`
   must include rows the test expects to stay synced, or the pull removes them.

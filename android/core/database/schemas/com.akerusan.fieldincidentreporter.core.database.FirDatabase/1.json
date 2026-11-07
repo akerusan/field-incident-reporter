@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "0b85ff990e1754b6716953314c57ec16",
+    "identityHash": "f713641851e1b1a413bacfc2fc65584a",
     "entities": [
       {
         "tableName": "incidents",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `category` TEXT NOT NULL, `severity` TEXT NOT NULL, `status` TEXT NOT NULL, `location_note` TEXT NOT NULL, `reported_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, `sync_state` TEXT NOT NULL, `pending_operation` TEXT, `local_version` INTEGER NOT NULL, `synced_version` INTEGER NOT NULL, `delete_after` INTEGER, `sync_error_reason` TEXT, `sync_error_detail` TEXT, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `category` TEXT NOT NULL, `severity` TEXT NOT NULL, `status` TEXT NOT NULL, `location_note` TEXT NOT NULL, `reported_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, `sync_state` TEXT NOT NULL, `pending_operation` TEXT, `local_version` INTEGER NOT NULL, `synced_version` INTEGER NOT NULL, `delete_after` INTEGER, `sync_error_reason` TEXT, `sync_error_detail` TEXT, `server_error_count` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -99,6 +99,13 @@
             "fieldPath": "syncErrorDetail",
             "columnName": "sync_error_detail",
             "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "serverErrorCount",
+            "columnName": "server_error_count",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
           }
         ],
         "primaryKey": {
@@ -195,7 +202,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '0b85ff990e1754b6716953314c57ec16')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f713641851e1b1a413bacfc2fc65584a')"
     ]
   }
 }

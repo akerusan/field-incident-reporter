@@ -5,7 +5,6 @@ import com.akerusan.fieldincidentreporter.core.domain.IncidentRepository
 import com.akerusan.fieldincidentreporter.core.domain.PhotoStore
 import com.akerusan.fieldincidentreporter.core.domain.result.SaveIncidentResult
 import com.akerusan.fieldincidentreporter.core.model.IncidentDraft
-import com.akerusan.fieldincidentreporter.core.model.PendingOperation
 import javax.inject.Inject
 
 /**
@@ -21,21 +20,17 @@ class UpdateIncidentUseCase @Inject constructor(
     suspend operator fun invoke(id: String, draft: IncidentDraft): SaveIncidentResult {
         val current = repository.getIncident(id) ?: return SaveIncidentResult.NotFound
         if (current.isReadOnly) return SaveIncidentResult.ReadOnly
-        if (current.pendingOperation == PendingOperation.DELETE) return SaveIncidentResult.NotFound // being deleted
 
         val errors = validateDraft(draft)
         if (errors.isNotEmpty()) return SaveIncidentResult.Invalid(errors)
 
-        val trimmed = draft.copy(
-            title = draft.title.trim(),
-            description = draft.description.trim(),
-            locationNote = draft.locationNote.trim(),
-        )
-        if (!repository.updateIncident(id, trimmed, updatedAt = clock.now())) {
+        val normalized = draft.normalized()
+        // False also when the incident is being deleted: there is nothing left to edit.
+        if (!repository.updateIncident(id, normalized, updatedAt = clock.now())) {
             return SaveIncidentResult.NotFound
         }
 
-        val keptPhotoIds = trimmed.photos.map { it.id }.toSet()
+        val keptPhotoIds = normalized.photos.map { it.id }.toSet()
         photoStore.deleteLocalFiles(current.photos.filterNot { it.id in keptPhotoIds })
         return SaveIncidentResult.Saved(id)
     }

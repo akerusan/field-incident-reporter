@@ -34,8 +34,9 @@ import retrofit2.Response
  *
  * Each row is independent: a failure on one never stops the others. Failures are classified as
  *  - **network** (no connection, timeout): the row stays pending and the run is retried later;
- *  - **server error** (5xx, 429, a malformed response): retried with backoff, then marked FAILED
- *    on the last attempt;
+ *  - **server error** (5xx, 429, a malformed response): retried with backoff; after
+ *    [MAX_SERVER_ERRORS] in a row the change is marked FAILED. The count lives on the row, so
+ *    rescheduling the sync never resets it;
  *  - **rejected** (other 4xx, including 409 for resolved incidents): marked FAILED right away,
  *    since retrying the same request can't succeed; the user can retry or discard.
  */
@@ -50,36 +51,28 @@ class IncidentSynchronizer @Inject constructor(
 ) {
     enum class Outcome { SUCCESS, RETRY }
 
-    /**
-     * @param isLastAttempt whether rows that keep hitting server errors should now be marked FAILED,
-     *   and a failing pull given up on until the next sync.
-     */
-    suspend fun sync(isLastAttempt: Boolean): Outcome {
+    suspend fun sync(): Outcome {
         var retry = false
         for (row in dao.getPending()) {
             when (val result = push(row)) {
                 PushResult.Done, PushResult.Skipped -> Unit
-
                 PushResult.NetworkError -> retry = true
-
-                is PushResult.ServerError -> if (isLastAttempt) {
-                    dao.markFailed(
-                        row.incident.id,
-                        row.incident.localVersion,
-                        SyncError.Reason.SERVER_ERROR,
-                        result.detail,
-                    )
-                } else {
-                    retry = true
-                }
+                is PushResult.ServerError -> if (!recordServerError(row, result.detail)) retry = true
             }
         }
-        when (pull()) {
-            PullResult.Done -> Unit
-            PullResult.NetworkError -> retry = true
-            PullResult.ServerError -> if (!isLastAttempt) retry = true
-        }
+        if (!pull()) retry = true
         return if (retry) Outcome.RETRY else Outcome.SUCCESS
+    }
+
+    /** Counts a server error on the row; returns true once the change has been marked FAILED. */
+    private suspend fun recordServerError(row: IncidentWithPhotos, detail: String): Boolean {
+        val incident = row.incident
+        if (incident.serverErrorCount + 1 < MAX_SERVER_ERRORS) {
+            dao.recordServerError(incident.id, incident.localVersion)
+            return false
+        }
+        dao.markFailed(incident.id, incident.localVersion, SyncError.Reason.SERVER_ERROR, detail)
+        return true
     }
 
     // --- Push ------------------------------------------------------------------------------------
@@ -108,7 +101,7 @@ class IncidentSynchronizer @Inject constructor(
         } catch (_: IOException) {
             PushResult.NetworkError
         } catch (_: SerializationException) {
-            PushResult.ServerError("Unexpected response from the server")
+            PushResult.ServerError(MALFORMED_RESPONSE)
         }
     }
 
@@ -123,8 +116,8 @@ class IncidentSynchronizer @Inject constructor(
                 return PushResult.Done
             }
             val response = api.uploadPhoto(file.asMultipartPart())
-            val path = response.body()?.path
-            if (!response.isSuccessful || path == null) return handleFailure(row, version, response)
+            if (!response.isSuccessful) return handleFailure(row, version, response)
+            val path = response.body()?.path ?: return PushResult.ServerError(MALFORMED_RESPONSE)
             dao.setPhotoRemotePath(photo.id, path) // kept even if this push fails later
             photo.copy(remotePath = path)
         }
@@ -153,13 +146,12 @@ class IncidentSynchronizer @Inject constructor(
         return PushResult.Done
     }
 
+    /** Classifies an unsuccessful response: retryable server error, or a rejection recorded on the row. */
     private suspend fun handleFailure(row: IncidentWithPhotos, version: Long, response: Response<*>): PushResult {
         val code = response.code()
         val error = errorParser.parse(response)
         val detail = error?.message ?: "HTTP $code"
-        if (code >= HttpURLConnection.HTTP_INTERNAL_ERROR || code == HTTP_TOO_MANY_REQUESTS || code < 400) {
-            return PushResult.ServerError(detail) // includes a 2xx with an unusable body
-        }
+        if (isRetryable(code)) return PushResult.ServerError(detail)
         val reason = if (code == HttpURLConnection.HTTP_CONFLICT && error?.code == ErrorDto.CODE_INCIDENT_RESOLVED) {
             SyncError.Reason.RESOLVED_BY_OPERATOR
         } else {
@@ -171,22 +163,20 @@ class IncidentSynchronizer @Inject constructor(
 
     // --- Pull ------------------------------------------------------------------------------------
 
-    private enum class PullResult { Done, NetworkError, ServerError }
-
     /**
      * Applies the server's list. Rows with local changes (PENDING or FAILED) are never touched, so
-     * the user's work is never lost to a pull.
+     * the user's work is never lost to a pull. Returns false if the list couldn't be fetched for a
+     * reason worth retrying.
      */
-    private suspend fun pull(): PullResult {
+    private suspend fun pull(): Boolean {
         val remote = try {
             api.getIncidents()
         } catch (_: IOException) {
-            return PullResult.NetworkError
+            return false
         } catch (e: HttpException) {
-            val retryable = e.code() >= HttpURLConnection.HTTP_INTERNAL_ERROR || e.code() == HTTP_TOO_MANY_REQUESTS
-            return if (retryable) PullResult.ServerError else PullResult.Done
+            return !isRetryable(e.code())
         } catch (_: SerializationException) {
-            return PullResult.ServerError
+            return false
         }
 
         val obsoletePhotos = transaction {
@@ -205,9 +195,10 @@ class IncidentSynchronizer @Inject constructor(
                     }
 
                     SyncState.SYNCED -> {
-                        val merge = mergeServerCopy(local, server, local.incident.updatedFromServer(server.incident))
-                        if (merge.incident != local.incident || merge.photos != local.orderedPhotos) {
-                            dao.update(merge.incident)
+                        val incident = local.incident.updatedFromServer(server.incident)
+                        val merge = mergeServerPhotos(local, server)
+                        if (incident != local.incident || merge.photos != local.orderedPhotos) {
+                            dao.update(incident)
                             dao.replacePhotos(dto.id, merge.photos)
                             obsolete += merge.obsoletePhotos
                         }
@@ -227,14 +218,22 @@ class IncidentSynchronizer @Inject constructor(
             obsolete
         }
         photoStore.deleteLocalFiles(obsoletePhotos.asLocalPhotos())
-        return PullResult.Done
+        return true
     }
 
     private fun File.asMultipartPart(): MultipartBody.Part =
         MultipartBody.Part.createFormData("file", name, asRequestBody(JPEG))
 
-    private companion object {
-        const val HTTP_TOO_MANY_REQUESTS = 429
-        val JPEG = "image/jpeg".toMediaType()
+    companion object {
+        /** Consecutive server errors before a change is marked FAILED. */
+        const val MAX_SERVER_ERRORS = 5
+
+        private const val HTTP_TOO_MANY_REQUESTS = 429
+        private const val MALFORMED_RESPONSE = "Unexpected response from the server"
+        private val JPEG = "image/jpeg".toMediaType()
+
+        /** Errors worth retrying as-is: the server is struggling, not refusing the request. */
+        private fun isRetryable(code: Int): Boolean =
+            code >= HttpURLConnection.HTTP_INTERNAL_ERROR || code == HTTP_TOO_MANY_REQUESTS
     }
 }

@@ -60,10 +60,14 @@ class IncidentEditorViewModel @AssistedInject constructor(
     private val eventChannel = Channel<IncidentEditorEvent>(Channel.BUFFERED)
     val events: Flow<IncidentEditorEvent> = eventChannel.receiveAsFlow()
 
-    /** The content the editor started from: empty for a new report, the saved incident for an edit. */
-    private var original: IncidentDraft?
-        get() = savedStateHandle.get<String>(KEY_ORIGINAL)?.let { Json.decodeFromString(it) }
+    /**
+     * The content the editor started from: empty for a new report, the saved incident for an edit.
+     * Read from saved state once; every change is written back for process death.
+     */
+    private var original: IncidentDraft? =
+        savedStateHandle.get<String>(KEY_ORIGINAL)?.let { Json.decodeFromString<IncidentDraft>(it) }
         set(value) {
+            field = value
             savedStateHandle[KEY_ORIGINAL] = value?.let { Json.encodeToString(it) }
         }
 
@@ -182,12 +186,9 @@ class IncidentEditorViewModel @AssistedInject constructor(
 
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true) }
-            val result = if (incidentId ==
-                null
-            ) {
-                reportIncident(state.draft)
-            } else {
-                updateIncident(incidentId, state.draft)
+            val result = when (incidentId) {
+                null -> reportIncident(state.draft)
+                else -> updateIncident(incidentId, state.draft)
             }
             _uiState.update { it.copy(isSaving = false) }
             when (result) {
