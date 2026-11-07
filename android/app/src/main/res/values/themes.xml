@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window theme only; the UI is themed in Compose (core:designsystem). -->
+    <style name="Theme.FieldIncidentReporter" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
