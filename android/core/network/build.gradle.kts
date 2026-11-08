@@ -12,7 +12,8 @@ val localProperties = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) file.inputStream().use(::load)
 }
-val apiBaseUrl: String = localProperties.getProperty("api.baseUrl") ?: "http://10.0.2.2:3000/"
+// Retrofit requires a trailing slash, so one is added if the override leaves it out.
+val apiBaseUrl: String = (localProperties.getProperty("api.baseUrl") ?: "http://10.0.2.2:3000/").trimEnd('/') + "/"
 
 android {
     namespace = "com.akerusan.fieldincidentreporter.core.network"

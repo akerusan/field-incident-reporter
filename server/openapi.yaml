@@ -204,7 +204,11 @@ components:
           description: Client-generated id, stable across edits.
         path:
           type: string
-          description: Relative path returned by `POST /uploads`, for example `/uploads/3f2a….jpg`.
+          pattern: '^/uploads/[A-Za-z0-9_-]+\.(jpg|png|webp)$'
+          description: |
+            Relative path returned by `POST /uploads`, for example `/uploads/3f2a….jpg`. Clients resolve
+            it against their API base URL; any other shape is rejected (`400`). Photo ids are unique
+            within an incident.
           examples: ['/uploads/3f2a8c1e-5b7d-4e2a-9c1f-0d3e5a7b9c21.jpg']
 
     IncidentInput:
@@ -218,7 +222,9 @@ components:
           type: string
         category: { $ref: '#/components/schemas/IncidentCategory' }
         severity: { $ref: '#/components/schemas/IncidentSeverity' }
-        status: { $ref: '#/components/schemas/IncidentStatus' }
+        status:
+          $ref: '#/components/schemas/IncidentStatus'
+          description: OPEN or IN_PROGRESS. `RESOLVED` is rejected (`400`); operators resolve with `PATCH`.
         locationNote:
           type: string
           description: Free-text location, for example "Pump room B, building 3".

@@ -81,6 +81,8 @@ class IncidentDetailViewModel @AssistedInject constructor(
                     IncidentDetailMessage.DISCARD_NEEDS_CONNECTION,
                 )
 
+                DiscardChangesResult.SERVER_ERROR -> messageChannel.send(IncidentDetailMessage.DISCARD_SERVER_ERROR)
+
                 DiscardChangesResult.NOTHING_TO_DISCARD -> Unit
             }
         }

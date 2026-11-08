@@ -4,5 +4,6 @@ package com.akerusan.fieldincidentreporter.feature.incidentdetail
 enum class IncidentDetailMessage {
     CANNOT_DELETE_RESOLVED,
     DISCARD_NEEDS_CONNECTION,
+    DISCARD_SERVER_ERROR,
     CHANGES_DISCARDED,
 }

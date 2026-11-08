@@ -12,6 +12,14 @@ describe("FilterBar", () => {
     expect(screen.getByLabelText("Sort")).toHaveValue("severity");
   });
 
+  it("follows the URL when the view changes without a full page load", () => {
+    const { rerender } = render(<FilterBar view={parseView({ status: "OPEN" })} />);
+
+    rerender(<FilterBar view={parseView({})} />);
+
+    expect(screen.getByLabelText("Status")).toHaveValue("");
+  });
+
   it("is a GET form, so a filtered list has a shareable URL", () => {
     render(<FilterBar view={parseView({})} />);
 

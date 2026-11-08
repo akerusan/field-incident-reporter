@@ -10,5 +10,12 @@ sealed interface IncidentEditorEvent {
 
     data object PhotoUnreadable : IncidentEditorEvent
 
+    /** More photos were picked than the incident has room for; the extras were not added. */
+    data object PhotoLimitReached : IncidentEditorEvent
+
+    /** The incident is resolved, so it can't be edited. */
     data object ReadOnly : IncidentEditorEvent
+
+    /** The incident was deleted while it was being edited, so the changes couldn't be saved. */
+    data object Deleted : IncidentEditorEvent
 }

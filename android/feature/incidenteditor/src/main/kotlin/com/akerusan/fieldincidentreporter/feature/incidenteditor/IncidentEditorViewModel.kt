@@ -143,8 +143,11 @@ class IncidentEditorViewModel @AssistedInject constructor(
         if (success) importPhotos(listOf(captureUri))
     }
 
+    /** The picker allows the maximum; anything beyond the slots left is dropped, and the user is told. */
     fun onPhotosPicked(uris: List<String>) {
-        importPhotos(uris.take(_uiState.value.remainingPhotoSlots))
+        val remaining = _uiState.value.remainingPhotoSlots
+        if (uris.size > remaining) viewModelScope.launch { eventChannel.send(IncidentEditorEvent.PhotoLimitReached) }
+        importPhotos(uris.take(remaining))
     }
 
     private fun importPhotos(uris: List<String>) {
@@ -192,14 +195,15 @@ class IncidentEditorViewModel @AssistedInject constructor(
             }
             _uiState.update { it.copy(isSaving = false) }
             when (result) {
-                is SaveIncidentResult.Saved, SaveIncidentResult.NotFound -> eventChannel.send(IncidentEditorEvent.Close)
+                is SaveIncidentResult.Saved -> eventChannel.send(IncidentEditorEvent.Close)
 
                 is SaveIncidentResult.Invalid -> _uiState.update { it.copy(errors = result.errors) }
 
-                SaveIncidentResult.ReadOnly -> {
-                    eventChannel.send(IncidentEditorEvent.ReadOnly)
-                    eventChannel.send(IncidentEditorEvent.Close)
-                }
+                // The incident was deleted or resolved while the editor was open: the changes can't be
+                // saved, so the photos added in this session are deleted and the user is told why.
+                SaveIncidentResult.NotFound -> leaveUnsaved(state.draft, IncidentEditorEvent.Deleted)
+
+                SaveIncidentResult.ReadOnly -> leaveUnsaved(state.draft, IncidentEditorEvent.ReadOnly)
             }
         }
     }
@@ -221,6 +225,12 @@ class IncidentEditorViewModel @AssistedInject constructor(
             discardDraft(_uiState.value.draft, savedPhotoIds = savedPhotoIds())
             eventChannel.send(IncidentEditorEvent.Close)
         }
+    }
+
+    private suspend fun leaveUnsaved(draft: IncidentDraft, reason: IncidentEditorEvent) {
+        discardDraft(draft, savedPhotoIds = savedPhotoIds())
+        eventChannel.send(reason)
+        eventChannel.send(IncidentEditorEvent.Close)
     }
 
     // --- State -----------------------------------------------------------------------------------

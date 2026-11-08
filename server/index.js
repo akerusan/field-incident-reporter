@@ -48,6 +48,13 @@ const isNonEmptyString = (value) => typeof value === 'string' && value.trim().le
 // A UTC instant such as 2026-11-07T08:30:00Z or 2026-11-07T08:30:00.123Z. Strict on purpose: clients
 // parse it as an ISO-8601 instant, and a looser format would make them skip the incident.
 const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isUuid = (value) => typeof value === 'string' && UUID.test(value);
+// A file directly under /uploads, as returned by POST /uploads (or shipped with the seed). Clients
+// resolve it against their API base URL, so anything else (`//host/x`, `http://…`, `../`) must not
+// be stored.
+const UPLOAD_PATH = /^\/uploads\/[A-Za-z0-9_-]+\.(jpg|png|webp)$/;
+const isUploadPath = (value) => typeof value === 'string' && UPLOAD_PATH.test(value);
 const isIsoInstant = (value) => typeof value === 'string' && ISO_INSTANT.test(value) && !Number.isNaN(Date.parse(value));
 
 /** Returns a list of problems with a full incident body (PUT), empty when valid. */
@@ -58,13 +65,17 @@ function validateIncident(body) {
   if (!CATEGORIES.includes(body.category)) problems.push(`category must be one of ${CATEGORIES.join(', ')}`);
   if (!SEVERITIES.includes(body.severity)) problems.push(`severity must be one of ${SEVERITIES.join(', ')}`);
   if (!STATUSES.includes(body.status)) problems.push(`status must be one of ${STATUSES.join(', ')}`);
+  // Status ownership (ADR-0005): technicians set OPEN or IN_PROGRESS; only operators resolve, with PATCH.
+  if (body.status === 'RESOLVED') problems.push('status RESOLVED is set by operators (PATCH), not with PUT');
   if (typeof body.locationNote !== 'string') problems.push('locationNote must be a string');
   if (!isIsoInstant(body.reportedAt)) problems.push('reportedAt must be an ISO-8601 UTC instant (…Z)');
   if (!isIsoInstant(body.updatedAt)) problems.push('updatedAt must be an ISO-8601 UTC instant (…Z)');
   if (!Array.isArray(body.photos)) {
     problems.push('photos must be an array');
-  } else if (!body.photos.every((photo) => isNonEmptyString(photo?.id) && isNonEmptyString(photo?.path))) {
-    problems.push('each photo needs an id and a path');
+  } else if (!body.photos.every((photo) => isUuid(photo?.id) && isUploadPath(photo?.path))) {
+    problems.push('each photo needs a UUID id and a path returned by POST /uploads');
+  } else if (new Set(body.photos.map((photo) => photo.id.toLowerCase())).size !== body.photos.length) {
+    problems.push('photo ids must be unique');
   }
   return problems;
 }
@@ -171,7 +182,7 @@ const upload = multer({
     filename: (req, file, callback) => callback(null, `${crypto.randomUUID()}${IMAGE_EXTENSIONS[file.mimetype]}`),
   }),
   limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
-  fileFilter: (req, file, callback) => callback(null, file.mimetype in IMAGE_EXTENSIONS),
+  fileFilter: (req, file, callback) => callback(null, Object.hasOwn(IMAGE_EXTENSIONS, file.mimetype)),
 });
 
 server.post('/uploads', (req, res) => {

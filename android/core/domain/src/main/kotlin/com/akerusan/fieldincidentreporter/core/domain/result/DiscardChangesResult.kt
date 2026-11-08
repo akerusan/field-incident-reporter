@@ -8,6 +8,9 @@ enum class DiscardChangesResult {
     /** The server couldn't be reached; nothing changed. */
     NEEDS_CONNECTION,
 
+    /** The server answered with an error or a reply the app couldn't read; nothing changed. */
+    SERVER_ERROR,
+
     /** There was no failed change to discard. */
     NOTHING_TO_DISCARD,
 }
