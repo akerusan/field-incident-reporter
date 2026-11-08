@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug only. Cleartext is allowed for any host so the mock API works from the emulator
+     (10.0.2.2), over `adb reverse` (localhost) and from a physical device on the LAN. -->
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <base-config
+        cleartextTrafficPermitted="true"
+        tools:ignore="InsecureBaseConfiguration" />
+</network-security-config>

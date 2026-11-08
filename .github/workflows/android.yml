@@ -1,0 +1,54 @@
+name: Android
+
+on:
+  push:
+    branches: [main]
+    paths: ["android/**", ".github/workflows/android.yml"]
+  pull_request:
+    paths: ["android/**", ".github/workflows/android.yml"]
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v5
+
+      # JDK 21 is the project toolchain; JDK 25 runs the Gradle daemon
+      # (gradle/gradle-daemon-jvm.properties).
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: |
+            21
+            25
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Check formatting
+        run: ./gradlew spotlessCheck
+
+      - name: Build
+        run: ./gradlew assembleDebug
+
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest
+
+      - name: Lint
+        run: ./gradlew lintDebug
+
+      - name: Upload reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-reports
+          path: |
+            android/**/build/reports/
+            android/**/build/test-results/
