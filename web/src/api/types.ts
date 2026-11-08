@@ -93,7 +93,9 @@ export interface components {
              */
             id: string;
             /**
-             * @description Relative path returned by `POST /uploads`, for example `/uploads/3f2a….jpg`.
+             * @description Relative path returned by `POST /uploads`, for example `/uploads/3f2a….jpg`. Clients resolve
+             *     it against their API base URL; any other shape is rejected (`400`). Photo ids are unique
+             *     within an incident.
              * @example /uploads/3f2a8c1e-5b7d-4e2a-9c1f-0d3e5a7b9c21.jpg
              */
             path: string;
@@ -103,6 +105,7 @@ export interface components {
             description: string;
             category: components["schemas"]["IncidentCategory"];
             severity: components["schemas"]["IncidentSeverity"];
+            /** @description OPEN or IN_PROGRESS. `RESOLVED` is rejected (`400`); operators resolve with `PATCH`. */
             status: components["schemas"]["IncidentStatus"];
             /** @description Free-text location, for example "Pump room B, building 3". */
             locationNote: string;

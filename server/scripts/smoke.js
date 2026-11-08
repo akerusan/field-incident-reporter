@@ -93,6 +93,25 @@ async function run() {
   assert.equal(response.body.code, 'VALIDATION_ERROR');
   step('PUT with an invalid body is rejected (400 VALIDATION_ERROR)');
 
+  for (const photos of [
+    [{ id: crypto.randomUUID(), path: '//other-host/photo.jpg' }],
+    [{ id: crypto.randomUUID(), path: 'http://other-host/photo.jpg' }],
+    [{ id: crypto.randomUUID(), path: '/uploads/../db.json' }],
+    [{ id: 'not-a-uuid', path: '/uploads/hvac-1.jpg' }],
+  ]) {
+    response = await request('PUT', `/incidents/${id}`, { ...incident, photos });
+    assert.equal(response.status, 400, JSON.stringify(photos));
+  }
+  const photoId = crypto.randomUUID();
+  const duplicate = { id: photoId, path: '/uploads/hvac-1.jpg' };
+  response = await request('PUT', `/incidents/${id}`, { ...incident, photos: [duplicate, duplicate] });
+  assert.equal(response.status, 400);
+  step('photos need a UUID id, a unique id and a path under /uploads (400 otherwise)');
+
+  response = await request('PUT', `/incidents/${id}`, { ...incident, status: 'RESOLVED' });
+  assert.equal(response.status, 400);
+  step('PUT cannot resolve an incident; only operators do, with PATCH (400)');
+
   response = await request('PATCH', `/incidents/${id}`, { status: 'IN_PROGRESS', updatedAt: '2026-11-07' });
   assert.equal(response.status, 400);
   step('timestamps must be ISO-8601 UTC instants (400 otherwise)');
