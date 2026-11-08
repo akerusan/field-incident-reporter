@@ -1,0 +1,118 @@
+{
+  "incidents": [
+    {
+      "id": "6f1c2a4e-0b7d-4c1e-9a52-1d3e8f0a7b11",
+      "title": "Hydraulic pump leaking oil",
+      "description": "Steady oil leak from the main seal of pump P-2. A small pool has formed under the unit; drip tray placed.",
+      "category": "EQUIPMENT",
+      "severity": "HIGH",
+      "status": "OPEN",
+      "locationNote": "Pump room B, building 3",
+      "photos": [
+        { "id": "a1f3c9d2-1111-4c3b-8d2e-0a1b2c3d4e01", "path": "/uploads/pump-leak-1.jpg" },
+        { "id": "a1f3c9d2-1111-4c3b-8d2e-0a1b2c3d4e02", "path": "/uploads/pump-leak-2.jpg" }
+      ],
+      "reportedAt": "2026-11-06T08:12:00Z",
+      "updatedAt": "2026-11-06T08:12:00Z"
+    },
+    {
+      "id": "2b8e5d71-3c4a-4f2b-8e6d-5a7c9b1d3e22",
+      "title": "Pothole on access road",
+      "description": "Pothole about 60 cm wide and 10 cm deep in the inbound lane. Cones placed around it.",
+      "category": "ROAD_HAZARD",
+      "severity": "MEDIUM",
+      "status": "IN_PROGRESS",
+      "locationNote": "North gate access road, 50 m after the barrier",
+      "photos": [
+        { "id": "a1f3c9d2-2222-4c3b-8d2e-0a1b2c3d4e03", "path": "/uploads/pothole-1.jpg" }
+      ],
+      "reportedAt": "2026-11-05T14:30:00Z",
+      "updatedAt": "2026-11-06T09:05:00Z"
+    },
+    {
+      "id": "9c3d7e12-5f6a-4b8c-9d0e-1f2a3b4c5d33",
+      "title": "Exposed wiring in junction box",
+      "description": "Junction box cover missing, live conductors exposed at shoulder height. Area taped off.",
+      "category": "ELECTRICAL",
+      "severity": "CRITICAL",
+      "status": "OPEN",
+      "locationNote": "Corridor 2F east, panel J-12",
+      "photos": [
+        { "id": "a1f3c9d2-3333-4c3b-8d2e-0a1b2c3d4e04", "path": "/uploads/wiring-1.jpg" }
+      ],
+      "reportedAt": "2026-11-07T01:45:00Z",
+      "updatedAt": "2026-11-07T01:45:00Z"
+    },
+    {
+      "id": "4e5f6a7b-8c9d-4e0f-a1b2-c3d4e5f6a744",
+      "title": "Burst pipe flooding basement",
+      "description": "Cold-water supply pipe burst near the riser. Main valve closed; about 3 cm of standing water.",
+      "category": "PLUMBING",
+      "severity": "CRITICAL",
+      "status": "IN_PROGRESS",
+      "locationNote": "Basement level B1, riser room",
+      "photos": [
+        { "id": "a1f3c9d2-4444-4c3b-8d2e-0a1b2c3d4e05", "path": "/uploads/burst-pipe-1.jpg" },
+        { "id": "a1f3c9d2-4444-4c3b-8d2e-0a1b2c3d4e06", "path": "/uploads/burst-pipe-2.jpg" }
+      ],
+      "reportedAt": "2026-11-06T22:10:00Z",
+      "updatedAt": "2026-11-06T23:40:00Z"
+    },
+    {
+      "id": "7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c55",
+      "title": "Broken handrail on stairwell",
+      "description": "Handrail bracket sheared off between the 3rd and 4th floor landings; rail is loose.",
+      "category": "SAFETY",
+      "severity": "HIGH",
+      "status": "RESOLVED",
+      "locationNote": "Stairwell C, between 3F and 4F",
+      "photos": [
+        { "id": "a1f3c9d2-5555-4c3b-8d2e-0a1b2c3d4e07", "path": "/uploads/handrail-1.jpg" }
+      ],
+      "reportedAt": "2026-11-03T10:20:00Z",
+      "updatedAt": "2026-11-04T16:00:00Z"
+    },
+    {
+      "id": "1d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f66",
+      "title": "Streetlight out in parking lot",
+      "description": "Light pole L-07 not turning on at night. Lamp or photocell suspected.",
+      "category": "ELECTRICAL",
+      "severity": "LOW",
+      "status": "RESOLVED",
+      "locationNote": "Parking lot P2, pole L-07",
+      "photos": [
+        { "id": "a1f3c9d2-6666-4c3b-8d2e-0a1b2c3d4e08", "path": "/uploads/streetlight-1.jpg" }
+      ],
+      "reportedAt": "2026-11-02T19:05:00Z",
+      "updatedAt": "2026-11-03T11:30:00Z"
+    },
+    {
+      "id": "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e77",
+      "title": "Fallen branch blocking footpath",
+      "description": "Large branch came down in last night's wind and blocks the full width of the path.",
+      "category": "ROAD_HAZARD",
+      "severity": "HIGH",
+      "status": "OPEN",
+      "locationNote": "Footpath between building 1 and the canteen",
+      "photos": [
+        { "id": "a1f3c9d2-7777-4c3b-8d2e-0a1b2c3d4e09", "path": "/uploads/branch-1.jpg" }
+      ],
+      "reportedAt": "2026-11-07T06:50:00Z",
+      "updatedAt": "2026-11-07T06:50:00Z"
+    },
+    {
+      "id": "8f9a0b1c-2d3e-4f4a-9b5c-6d7e8f9a0b88",
+      "title": "HVAC unit making grinding noise",
+      "description": "Rooftop unit AHU-4 makes a grinding noise on start-up, likely the fan bearing.",
+      "category": "EQUIPMENT",
+      "severity": "MEDIUM",
+      "status": "OPEN",
+      "locationNote": "Roof level, building 2, unit AHU-4",
+      "photos": [
+        { "id": "a1f3c9d2-8888-4c3b-8d2e-0a1b2c3d4e10", "path": "/uploads/hvac-1.jpg" }
+      ],
+      "reportedAt": "2026-11-04T07:25:00Z",
+      "updatedAt": "2026-11-04T07:25:00Z"
+    }
+  ]
+}
