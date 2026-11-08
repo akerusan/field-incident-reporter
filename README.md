@@ -9,7 +9,7 @@ working in basements, plant rooms and anywhere else the signal drops.
 | [`android/`](android/) | Android app: Kotlin, Jetpack Compose, MVVM + use cases, Hilt, Room, WorkManager, Navigation 3 |
 | [`server/`](server/) | Local mock API (json-server with photo uploads) and its [OpenAPI contract](server/openapi.yaml) |
 | [`web/`](web/) | Operator dashboard: Next.js (App Router), TypeScript, Tailwind. Triage, filter and resolve incidents |
-| [`docs/`](docs/) | [Architecture decision records](docs/adr/) and the AI usage log |
+| [`docs/`](docs/) | [Architecture decision records](docs/adr/), the [AI usage log](docs/ai-usage.md), screenshots and the demo video |
 
 ## Quick start
 
@@ -62,6 +62,20 @@ Notes:
   retried or discarded.
 - Dark theme, dynamic color, edge-to-edge, predictive back, TalkBack labels. A draft in progress,
   and a photo being taken, survive the app being killed in the background.
+
+## Demo and screenshots
+
+[**Demo video**](docs/demo.mp4) (under 2 minutes): report with a camera photo, report offline and
+watch it sync, an operator resolving an incident in the dashboard while the technician edits it,
+discarding the rejected change, then delete and undo.
+
+| Incident list | Detail | Validation | Offline |
+|---|---|---|---|
+| <img src="docs/screenshots/list-dark.png" width="200" alt="Incident list, dark theme"> | <img src="docs/screenshots/detail-dark.png" width="200" alt="Incident detail with photos"> | <img src="docs/screenshots/editor-validation-dark.png" width="200" alt="Editor showing validation errors"> | <img src="docs/screenshots/offline-pending-dark.png" width="200" alt="Offline banner and an incident waiting to sync"> |
+
+| Change rejected | Light theme | Dashboard | Dashboard triage |
+|---|---|---|---|
+| <img src="docs/screenshots/sync-failed-dark.png" width="200" alt="A change rejected because an operator resolved the incident"> | <img src="docs/screenshots/list-light.png" width="200" alt="Incident list, light theme"> | <img src="docs/screenshots/dashboard-list.png" width="200" alt="Operator dashboard incident table"> | <img src="docs/screenshots/dashboard-detail.png" width="200" alt="Operator dashboard incident detail with triage actions"> |
 
 ## Scope decisions
 
