@@ -1,0 +1,35 @@
+<resources>
+    <!-- Categories -->
+    <string name="category_equipment">Equipment</string>
+    <string name="category_road_hazard">Road hazard</string>
+    <string name="category_electrical">Electrical</string>
+    <string name="category_plumbing">Plumbing</string>
+    <string name="category_safety">Safety</string>
+    <string name="category_other">Other</string>
+
+    <!-- Severities -->
+    <string name="severity_low">Low</string>
+    <string name="severity_medium">Medium</string>
+    <string name="severity_high">High</string>
+    <string name="severity_critical">Critical</string>
+
+    <!-- Statuses -->
+    <string name="status_open">Open</string>
+    <string name="status_in_progress">In progress</string>
+    <string name="status_resolved">Resolved</string>
+
+    <!-- Sync -->
+    <string name="sync_pending">Waiting to sync</string>
+    <string name="sync_failed">Not synced</string>
+    <string name="sync_failed_delete">Couldn\'t delete</string>
+
+    <!-- Offline -->
+    <string name="offline_banner">You\'re offline. Changes are saved on this device and will sync when you\'re back online.</string>
+
+    <!-- Time -->
+    <string name="time_just_now">Just now</string>
+
+    <!-- Photos -->
+    <string name="photo_content_description">Incident photo</string>
+    <string name="photo_unavailable">Photo unavailable</string>
+</resources>

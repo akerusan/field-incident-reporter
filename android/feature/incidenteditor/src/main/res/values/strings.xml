@@ -1,0 +1,50 @@
+<resources>
+    <string name="incident_editor_title_new">Report incident</string>
+    <string name="incident_editor_title_edit">Edit incident</string>
+    <string name="incident_editor_close">Close</string>
+    <string name="incident_editor_save">Save</string>
+
+    <string name="incident_editor_field_title">Title</string>
+    <string name="incident_editor_field_description">Description</string>
+    <string name="incident_editor_field_location">Location</string>
+    <string name="incident_editor_field_location_hint">Building, floor, room, or landmark</string>
+    <string name="incident_editor_field_category">Category</string>
+    <string name="incident_editor_field_severity">Severity</string>
+    <string name="incident_editor_field_status">Status</string>
+    <string name="incident_editor_field_photos">Photos (%1$d/%2$d)</string>
+    <string name="incident_editor_character_count">%1$d/%2$d</string>
+
+    <string name="incident_editor_take_photo">Take photo</string>
+    <string name="incident_editor_choose_photos">Choose photos</string>
+    <string name="incident_editor_remove_photo">Remove photo</string>
+    <string name="incident_editor_adding_photo">Adding photo…</string>
+
+    <string name="incident_editor_error_title_missing">Give the incident a title</string>
+    <plurals name="incident_editor_error_title_too_long">
+        <item quantity="one">Keep the title under %1$d character</item>
+        <item quantity="other">Keep the title under %1$d characters</item>
+    </plurals>
+    <plurals name="incident_editor_error_description_too_long">
+        <item quantity="one">Keep the description under %1$d character</item>
+        <item quantity="other">Keep the description under %1$d characters</item>
+    </plurals>
+    <plurals name="incident_editor_error_location_too_long">
+        <item quantity="one">Keep the location under %1$d character</item>
+        <item quantity="other">Keep the location under %1$d characters</item>
+    </plurals>
+    <string name="incident_editor_error_category_missing">Choose a category</string>
+    <string name="incident_editor_error_severity_missing">Choose a severity</string>
+    <string name="incident_editor_error_status_not_allowed">Only an operator can resolve an incident</string>
+    <plurals name="incident_editor_error_too_many_photos">
+        <item quantity="one">Attach at most %1$d photo</item>
+        <item quantity="other">Attach at most %1$d photos</item>
+    </plurals>
+
+    <string name="incident_editor_discard_title">Discard changes?</string>
+    <string name="incident_editor_discard_message">Your changes to this incident haven\'t been saved.</string>
+    <string name="incident_editor_discard_confirm">Discard</string>
+    <string name="incident_editor_keep_editing">Keep editing</string>
+
+    <string name="incident_editor_message_photo_unreadable">That image couldn\'t be read. Try another one.</string>
+    <string name="incident_editor_message_read_only">This incident was resolved by an operator and can no longer be edited.</string>
+</resources>
