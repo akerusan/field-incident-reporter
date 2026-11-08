@@ -138,6 +138,22 @@ co-wrote carry a `Co-Authored-By` trailer.
 - **Checked by:** reading every document against the code it describes, and watching the recorded
   demo frame by frame before keeping it.
 
+### Review of the merged pull requests
+
+- **Used for:** a second, independent review of every merged pull request, after the history was
+  complete, checked against the final code.
+- **Checked by:** reading each finding against the code before acting on it. One claim was verified
+  in the library itself: WorkManager's `CONNECTED` constraint does require a validated network on
+  API 26+, so the app's online check was looser than the sync's.
+- **Fixed:** a dashboard filter bar that kept old values after in-app navigation; photo paths and ids
+  the server accepted without validation (a path such as `//other-host/x.jpg` made the dashboard load
+  a third-party image); `PUT` accepting `RESOLVED` despite the status ownership rule; edits lost
+  silently when the incident was deleted while being edited; and several smaller items, each with a
+  test where it could regress.
+- **Left as is, on purpose:** a delete whose undo snackbar was interrupted waits for the next sync
+  instead of a timer (it is delayed, never lost), and the start-of-app sync also runs when
+  WorkManager wakes the process (wasteful, not wrong). Both keep the scheduling simple.
+
 ## Risks considered
 
 - **Invented or outdated APIs and versions.** Models can recall library APIs that changed or never
