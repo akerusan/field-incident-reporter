@@ -37,15 +37,11 @@ class OfflineFirstIncidentRepositoryTest {
     @Test
     fun `creating an incident stores it as a pending create and schedules a sync`() = runTest {
         val photo = IncidentPhoto(id = "p1", localPath = "/photos/p1.jpg")
-        repository.createIncident(
-            testIncident(
-                syncState = SyncState.PENDING,
-                pendingOperation = PendingOperation.CREATE,
-                photos = listOf(photo),
-            ),
-        )
+        // The test incident says SYNCED: a new row is a pending create whatever the caller passes.
+        repository.createIncident(testIncident(photos = listOf(photo)))
 
         val row = checkNotNull(dao.getById("incident-1"))
+        assertEquals(SyncState.PENDING, row.incident.syncState)
         assertEquals(PendingOperation.CREATE, row.incident.pendingOperation)
         assertEquals(1, row.incident.localVersion)
         assertEquals(0, row.incident.syncedVersion)
@@ -229,6 +225,16 @@ class OfflineFirstIncidentRepositoryTest {
         env.goOffline()
 
         assertEquals(DiscardChangesResult.NEEDS_CONNECTION, repository.discardLocalChanges("incident-1"))
+
+        assertEquals("My edit", checkNotNull(dao.getById("incident-1")).incident.title)
+    }
+
+    @Test
+    fun `discarding when the server answers with an error is not reported as a connection problem`() = runTest {
+        dao.insert(failed(title = "My edit"))
+        env.respond("GET", "/incidents/incident-1", 500)
+
+        assertEquals(DiscardChangesResult.SERVER_ERROR, repository.discardLocalChanges("incident-1"))
 
         assertEquals("My edit", checkNotNull(dao.getById("incident-1")).incident.title)
     }

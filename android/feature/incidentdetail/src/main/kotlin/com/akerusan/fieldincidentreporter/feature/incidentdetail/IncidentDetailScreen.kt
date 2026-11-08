@@ -77,6 +77,7 @@ fun IncidentDetailRoute(
         val text = when (message) {
             IncidentDetailMessage.CANNOT_DELETE_RESOLVED -> R.string.incident_detail_message_read_only
             IncidentDetailMessage.DISCARD_NEEDS_CONNECTION -> R.string.incident_detail_message_needs_connection
+            IncidentDetailMessage.DISCARD_SERVER_ERROR -> R.string.incident_detail_message_server_error
             IncidentDetailMessage.CHANGES_DISCARDED -> R.string.incident_detail_message_discarded
         }
         snackbarHostState.showSnackbar(resources.getString(text))
@@ -131,8 +132,6 @@ internal fun IncidentDetailScreen(
                                 contentDescription = stringResource(R.string.incident_detail_edit),
                             )
                         }
-                    }
-                    if (content?.canModify == true) {
                         IconButton(onClick = { showDeleteDialog = true }) {
                             Icon(
                                 Icons.Outlined.Delete,

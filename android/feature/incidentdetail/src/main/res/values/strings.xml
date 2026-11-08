@@ -32,5 +32,6 @@
 
     <string name="incident_detail_message_read_only">Resolved incidents can\'t be deleted.</string>
     <string name="incident_detail_message_needs_connection">Couldn\'t reach the server. Check your connection and try again.</string>
+    <string name="incident_detail_message_server_error">The server couldn\'t provide its version of this incident. Try again later.</string>
     <string name="incident_detail_message_discarded">Your changes were discarded.</string>
 </resources>

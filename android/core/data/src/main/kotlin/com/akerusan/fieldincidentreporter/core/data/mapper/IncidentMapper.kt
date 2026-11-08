@@ -8,6 +8,7 @@ import com.akerusan.fieldincidentreporter.core.model.IncidentCategory
 import com.akerusan.fieldincidentreporter.core.model.IncidentPhoto
 import com.akerusan.fieldincidentreporter.core.model.IncidentSeverity
 import com.akerusan.fieldincidentreporter.core.model.IncidentStatus
+import com.akerusan.fieldincidentreporter.core.model.PendingOperation
 import com.akerusan.fieldincidentreporter.core.model.SyncError
 import com.akerusan.fieldincidentreporter.core.model.SyncState
 import com.akerusan.fieldincidentreporter.core.network.RemotePathResolver
@@ -55,7 +56,7 @@ class IncidentMapper @Inject constructor(private val remotePathResolver: RemoteP
 
     // --- Domain -> database ----------------------------------------------------------------------
 
-    /** A newly reported incident: version 1, never synced. */
+    /** A newly reported incident: a pending create at version 1, never synced, whatever the caller set. */
     fun toNewEntity(incident: Incident): IncidentEntity = IncidentEntity(
         id = incident.id,
         title = incident.title,
@@ -66,8 +67,8 @@ class IncidentMapper @Inject constructor(private val remotePathResolver: RemoteP
         locationNote = incident.locationNote,
         reportedAt = incident.reportedAt,
         updatedAt = incident.updatedAt,
-        syncState = incident.syncState,
-        pendingOperation = incident.pendingOperation,
+        syncState = SyncState.PENDING,
+        pendingOperation = PendingOperation.CREATE,
         localVersion = 1,
         syncedVersion = 0,
         deleteAfter = null,

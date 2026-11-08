@@ -105,6 +105,18 @@ class IncidentDetailViewModelTest {
         }
     }
 
+    @Test
+    fun `a server error while discarding gets its own message`() = runTest {
+        repository.discardResult = DiscardChangesResult.SERVER_ERROR
+        val viewModel = viewModel()
+
+        viewModel.messages.test {
+            viewModel.onDiscardChanges()
+
+            assertEquals(IncidentDetailMessage.DISCARD_SERVER_ERROR, awaitItem())
+        }
+    }
+
     private suspend fun ReceiveTurbine<IncidentDetailUiState>.awaitContent(): IncidentDetailUiState.Content {
         var state = awaitItem()
         while (state !is IncidentDetailUiState.Content) state = awaitItem()

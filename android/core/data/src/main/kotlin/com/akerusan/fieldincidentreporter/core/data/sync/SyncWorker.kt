@@ -28,7 +28,8 @@ class SyncWorker @AssistedInject constructor(
             throw e
         } catch (e: Exception) {
             // Unexpected (a database error, a bug). Retry a few times in case it was transient, then
-            // stop so it doesn't loop forever; the next write or app start schedules a new sync.
+            // stop. runAttemptCount restarts when the scheduler replaces waiting work (a new write),
+            // so this caps one run of retries, not the total; exponential backoff bounds the rest.
             Log.e(TAG, "Sync failed unexpectedly (attempt ${runAttemptCount + 1})", e)
             if (runAttemptCount + 1 >= MAX_UNEXPECTED_FAILURES) return Result.success()
             IncidentSynchronizer.Outcome.RETRY

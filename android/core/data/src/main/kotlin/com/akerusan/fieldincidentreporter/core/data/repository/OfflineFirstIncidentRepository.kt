@@ -148,7 +148,7 @@ class OfflineFirstIncidentRepository @Inject constructor(
         } catch (_: IOException) {
             return DiscardChangesResult.NEEDS_CONNECTION
         } catch (_: SerializationException) {
-            return DiscardChangesResult.NEEDS_CONNECTION
+            return DiscardChangesResult.SERVER_ERROR
         }
         return when {
             response.code() == HttpURLConnection.HTTP_NOT_FOUND -> {
@@ -158,11 +158,11 @@ class OfflineFirstIncidentRepository @Inject constructor(
 
             response.isSuccessful -> {
                 val server = response.body()?.let(mapper::toServerContent)
-                    ?: return DiscardChangesResult.NEEDS_CONNECTION
+                    ?: return DiscardChangesResult.SERVER_ERROR
                 replaceWithServerCopy(row.incident.localVersion, server)
             }
 
-            else -> DiscardChangesResult.NEEDS_CONNECTION
+            else -> DiscardChangesResult.SERVER_ERROR
         }
     }
 
