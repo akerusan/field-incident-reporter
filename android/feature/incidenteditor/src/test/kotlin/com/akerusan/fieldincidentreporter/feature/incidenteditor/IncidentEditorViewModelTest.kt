@@ -105,6 +105,46 @@ class IncidentEditorViewModelTest {
     }
 
     @Test
+    fun `saving after the incident was deleted says so and deletes the photos added`() = runTest {
+        val viewModel = viewModel(incidentId = "incident-1")
+        viewModel.onPhotosPicked(listOf("content://picker/new"))
+        repository.set() // removed by a sync while the editor was open
+
+        viewModel.events.test {
+            viewModel.onSave()
+            assertEquals(IncidentEditorEvent.Deleted, awaitItem())
+            assertEquals(IncidentEditorEvent.Close, awaitItem())
+        }
+        assertEquals(listOf("photo-1"), photoStore.deletedPhotos.map { it.id })
+    }
+
+    @Test
+    fun `saving after an operator resolved the incident says so and deletes the photos added`() = runTest {
+        val viewModel = viewModel(incidentId = "incident-1")
+        viewModel.onPhotosPicked(listOf("content://picker/new"))
+        repository.set(testIncident(status = IncidentStatus.RESOLVED, photos = listOf(savedPhoto)))
+
+        viewModel.events.test {
+            viewModel.onSave()
+            assertEquals(IncidentEditorEvent.ReadOnly, awaitItem())
+            assertEquals(IncidentEditorEvent.Close, awaitItem())
+        }
+        assertEquals(listOf("photo-1"), photoStore.deletedPhotos.map { it.id })
+    }
+
+    @Test
+    fun `photos picked beyond the limit are left out, and the user is told`() = runTest {
+        val viewModel = viewModel()
+        val picked = (1..ValidateIncidentDraftUseCase.MAX_PHOTOS + 2).map { "content://picker/$it" }
+
+        viewModel.events.test {
+            viewModel.onPhotosPicked(picked)
+            assertEquals(IncidentEditorEvent.PhotoLimitReached, awaitItem())
+        }
+        assertEquals(ValidateIncidentDraftUseCase.MAX_PHOTOS, viewModel.uiState.value.draft.photos.size)
+    }
+
+    @Test
     fun `the draft survives process death`() = runTest {
         val savedStateHandle = SavedStateHandle()
         viewModel(savedStateHandle = savedStateHandle).onTitleChange("Half-typed report")

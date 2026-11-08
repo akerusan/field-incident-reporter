@@ -47,4 +47,6 @@
 
     <string name="incident_editor_message_photo_unreadable">That image couldn\'t be read. Try another one.</string>
     <string name="incident_editor_message_read_only">This incident was resolved by an operator and can no longer be edited.</string>
+    <string name="incident_editor_message_deleted">This incident was deleted, so your changes couldn\'t be saved.</string>
+    <string name="incident_editor_message_photo_limit">Some photos weren\'t added: an incident can have up to %1$d photos.</string>
 </resources>

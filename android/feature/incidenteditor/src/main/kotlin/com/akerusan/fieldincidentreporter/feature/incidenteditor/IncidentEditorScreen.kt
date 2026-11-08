@@ -89,8 +89,19 @@ fun IncidentEditorRoute(
             IncidentEditorEvent.PhotoUnreadable ->
                 snackbarHostState.showSnackbar(resources.getString(R.string.incident_editor_message_photo_unreadable))
 
+            IncidentEditorEvent.PhotoLimitReached ->
+                snackbarHostState.showSnackbar(
+                    resources.getString(
+                        R.string.incident_editor_message_photo_limit,
+                        ValidateIncidentDraftUseCase.MAX_PHOTOS,
+                    ),
+                )
+
             IncidentEditorEvent.ReadOnly ->
                 snackbarHostState.showSnackbar(resources.getString(R.string.incident_editor_message_read_only))
+
+            IncidentEditorEvent.Deleted ->
+                snackbarHostState.showSnackbar(resources.getString(R.string.incident_editor_message_deleted))
         }
     }
 
