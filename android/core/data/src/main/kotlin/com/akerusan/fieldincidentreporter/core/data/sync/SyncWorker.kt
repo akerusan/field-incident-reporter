@@ -1,16 +1,18 @@
 package com.akerusan.fieldincidentreporter.core.data.sync
 
 import android.content.Context
+import android.util.Log
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.CancellationException
 
 /**
- * Runs one [IncidentSynchronizer] pass. Returns only success or retry, never failure: a failed
- * request would cancel every sync appended after it, and per-row failures are already recorded on
- * the rows themselves.
+ * Runs one [IncidentSynchronizer] pass. Returns only success or retry, never failure: per-row
+ * failures are recorded on the rows themselves, and a failed work request would also cancel the
+ * follow-up sync queued behind it.
  */
 @HiltWorker
 class SyncWorker @AssistedInject constructor(
@@ -20,15 +22,25 @@ class SyncWorker @AssistedInject constructor(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        val isLastAttempt = runAttemptCount >= MAX_SYNC_ATTEMPTS - 1
-        return when (synchronizer.sync(isLastAttempt)) {
+        val outcome = try {
+            synchronizer.sync()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Unexpected (a database error, a bug). Retry a few times in case it was transient, then
+            // stop so it doesn't loop forever; the next write or app start schedules a new sync.
+            Log.e(TAG, "Sync failed unexpectedly (attempt ${runAttemptCount + 1})", e)
+            if (runAttemptCount + 1 >= MAX_UNEXPECTED_FAILURES) return Result.success()
+            IncidentSynchronizer.Outcome.RETRY
+        }
+        return when (outcome) {
             IncidentSynchronizer.Outcome.SUCCESS -> Result.success()
             IncidentSynchronizer.Outcome.RETRY -> Result.retry()
         }
     }
 
     companion object {
-        /** Runs before rows that keep getting server errors (5xx) are marked FAILED. */
-        const val MAX_SYNC_ATTEMPTS = 5
+        private const val MAX_UNEXPECTED_FAILURES = 3
+        private const val TAG = "SyncWorker"
     }
 }

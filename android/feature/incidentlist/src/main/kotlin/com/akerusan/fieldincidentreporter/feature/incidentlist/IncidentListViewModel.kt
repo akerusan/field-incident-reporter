@@ -37,8 +37,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 class IncidentListViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     observeIncidents: ObserveIncidentsUseCase,
-    private val observePendingDeletes: ObservePendingDeletesUseCase,
-    private val observeConnectivity: ObserveConnectivityUseCase,
+    observePendingDeletes: ObservePendingDeletesUseCase,
+    observeConnectivity: ObserveConnectivityUseCase,
     private val observeSyncActivity: ObserveSyncActivityUseCase,
     private val refreshIncidents: RefreshIncidentsUseCase,
     private val restoreIncident: RestoreIncidentUseCase,
@@ -73,37 +73,28 @@ class IncidentListViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), IncidentListUiState())
 
-    init {
-        // One undo snackbar at a time: a newer delete closes the undo window of older ones.
-        viewModelScope.launch {
-            observePendingDeletes().collect { pending ->
-                pending.drop(1).forEach { commitPendingDelete(it.id) }
-            }
-        }
-    }
-
     fun onStatusFilterSelected(status: IncidentStatus?) {
         savedStateHandle[KEY_STATUS_FILTER] = status
     }
 
     /**
-     * Pull-to-refresh. The indicator stays on until the sync has run (or didn't start in time),
-     * rather than flickering off while the work is queued.
+     * Pull-to-refresh. The indicator stays on until the sync has run, rather than flickering off
+     * while the work is queued.
      */
     fun onRefresh() {
         if (refreshJob?.isActive == true) return
         refreshJob = viewModelScope.launch {
             refreshIncidents()
-            if (!observeConnectivity().first()) {
+            if (!uiState.value.isOnline) {
                 messageChannel.send(IncidentListMessage.WILL_SYNC_WHEN_ONLINE)
                 return@launch
             }
             isRefreshing.value = true
             try {
-                withTimeoutOrNull(REFRESH_TIMEOUT) {
-                    observeSyncActivity().first { it }
-                    observeSyncActivity().first { !it }
-                }
+                // A fast sync can be queued and done before we ever see it, so the wait for it to
+                // appear is short; the wait for it to finish is bounded too.
+                withTimeoutOrNull(SYNC_START_TIMEOUT) { observeSyncActivity().first { it } }
+                withTimeoutOrNull(SYNC_FINISH_TIMEOUT) { observeSyncActivity().first { !it } }
             } finally {
                 isRefreshing.value = false
             }
@@ -125,6 +116,7 @@ class IncidentListViewModel @Inject constructor(
 
     private companion object {
         const val KEY_STATUS_FILTER = "statusFilter"
-        val REFRESH_TIMEOUT = 20.seconds
+        val SYNC_START_TIMEOUT = 3.seconds
+        val SYNC_FINISH_TIMEOUT = 20.seconds
     }
 }

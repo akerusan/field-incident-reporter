@@ -11,5 +11,8 @@ data class SyncError(val reason: Reason, val detail: String? = null) {
 
         /** The server kept failing (5xx) after several attempts. */
         SERVER_ERROR,
+
+        /** A photo that was never uploaded is no longer on this device (for example, storage was cleared). */
+        PHOTO_MISSING,
     }
 }

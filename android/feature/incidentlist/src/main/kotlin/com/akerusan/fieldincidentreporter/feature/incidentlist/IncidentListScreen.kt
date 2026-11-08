@@ -31,7 +31,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -112,10 +114,13 @@ internal fun IncidentListScreen(
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.incident_list_title)) }) },
         floatingActionButton = {
+            val reportLabel = stringResource(R.string.incident_list_report)
             ExtendedFloatingActionButton(
                 onClick = onReportClick,
                 icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                text = { Text(stringResource(R.string.incident_list_report)) },
+                text = { Text(reportLabel) },
+                // The button's text slot isn't exposed to accessibility services, so label it here.
+                modifier = Modifier.semantics { contentDescription = reportLabel },
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -169,11 +174,17 @@ private fun StatusFilterRow(selected: IncidentStatus?, onSelected: (IncidentStat
 private fun IncidentList(incidents: List<Incident>, onIncidentClick: (String) -> Unit) {
     val listState = rememberLazyListState()
     // A lazy list keeps its first visible item in place, so an incident added at the top (a new
-    // report, or one pulled from the server) would land just above the viewport. Follow it when
-    // the user was already at the top.
+    // report, or one pulled from the server) would land just above the viewport. When the user is
+    // at the top, ask the next measure (the one with the new item) to stay at index 0 instead.
     val firstIncidentId = incidents.firstOrNull()?.id
-    LaunchedEffect(firstIncidentId) {
-        if (listState.firstVisibleItemIndex <= 1) listState.animateScrollToItem(0)
+    val previousFirstIncidentId = remember { mutableStateOf(firstIncidentId) }
+    SideEffect {
+        if (firstIncidentId != previousFirstIncidentId.value) {
+            if (listState.firstVisibleItemIndex == 0 && !listState.isScrollInProgress) {
+                listState.requestScrollToItem(0)
+            }
+            previousFirstIncidentId.value = firstIncidentId
+        }
     }
     LazyColumn(
         state = listState,

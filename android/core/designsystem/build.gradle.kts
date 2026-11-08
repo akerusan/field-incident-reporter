@@ -14,8 +14,4 @@ dependencies {
     implementation(projects.core.model)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
-
-    testImplementation(libs.androidx.compose.ui.test.junit4)
-    testImplementation(libs.robolectric)
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

@@ -19,9 +19,14 @@ be made. The brief also asks for clear asynchronous state handling.
 - A monotonic `localVersion` per row, compared with the version the sync sent, decides whether a
   server confirmation still applies (`IncidentDao.markSynced`). An edit made while a sync is in
   flight therefore stays pending instead of being marked synced by mistake.
-- All sync work runs under **one** unique work name, chained with `APPEND_OR_REPLACE`. Two names
-  would let two push-then-pull runs overlap, and one run's pull could delete a row the other had
-  just created.
+- All sync work runs under **one** unique work name, so runs never overlap: two names would let two
+  push-then-pull runs overlap, and one run's pull could delete a row the other had just created.
+  A new request replaces a sync that is only waiting (for a network, or in backoff after a failure),
+  so a new change never waits behind a long backoff; behind a running sync it queues exactly one
+  follow-up, which picks up every change made meanwhile.
+- Retry limits live on the row (a count of consecutive server errors), not on the WorkManager
+  request, so rescheduling never resets them: after five server errors the change is marked
+  `FAILED`. A lost connection never fails a change; it waits.
 
 ## Consequences
 

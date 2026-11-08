@@ -17,6 +17,13 @@ data class IncidentDraft(
     val locationNote: String = "",
     val photos: List<IncidentPhoto> = emptyList(),
 ) {
+    /** The draft as it is saved: surrounding whitespace removed from the text fields. */
+    fun normalized(): IncidentDraft = copy(
+        title = title.trim(),
+        description = description.trim(),
+        locationNote = locationNote.trim(),
+    )
+
     companion object {
         fun from(incident: Incident): IncidentDraft = IncidentDraft(
             title = incident.title,

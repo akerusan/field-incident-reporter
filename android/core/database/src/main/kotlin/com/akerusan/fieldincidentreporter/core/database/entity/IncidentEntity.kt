@@ -42,4 +42,9 @@ data class IncidentEntity(
     @ColumnInfo(name = "delete_after") val deleteAfter: Instant?,
     @ColumnInfo(name = "sync_error_reason") val syncErrorReason: SyncError.Reason?,
     @ColumnInfo(name = "sync_error_detail") val syncErrorDetail: String?,
+    /**
+     * Consecutive server errors (5xx) for the pending change. Kept on the row, not on the
+     * WorkManager request, so rescheduling a sync never resets it. Back to 0 on any user write.
+     */
+    @ColumnInfo(name = "server_error_count", defaultValue = "0") val serverErrorCount: Int = 0,
 )

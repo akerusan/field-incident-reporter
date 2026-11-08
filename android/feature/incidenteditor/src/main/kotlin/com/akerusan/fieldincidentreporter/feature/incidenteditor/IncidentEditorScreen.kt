@@ -232,7 +232,7 @@ private fun EditorForm(uiState: IncidentEditorUiState, actions: IncidentEditorAc
         CategoryField(
             selected = draft.category,
             onSelect = actions.onCategorySelect,
-            error = DraftError.CATEGORY_MISSING.takeIf { it in errors }?.let { errorText(it) },
+            error = errors.textFor(DraftError.CATEGORY_MISSING),
         )
 
         ChoiceField(
@@ -241,7 +241,7 @@ private fun EditorForm(uiState: IncidentEditorUiState, actions: IncidentEditorAc
             selected = draft.severity,
             onSelect = actions.onSeveritySelect,
             optionLabel = { stringResource(it.labelRes) },
-            error = DraftError.SEVERITY_MISSING.takeIf { it in errors }?.let { errorText(it) },
+            error = errors.textFor(DraftError.SEVERITY_MISSING),
         )
 
         if (!uiState.isNewIncident) {
@@ -251,7 +251,7 @@ private fun EditorForm(uiState: IncidentEditorUiState, actions: IncidentEditorAc
                 selected = draft.status,
                 onSelect = actions.onStatusSelect,
                 optionLabel = { stringResource(it.labelRes) },
-                error = DraftError.STATUS_NOT_ALLOWED.takeIf { it in errors }?.let { errorText(it) },
+                error = errors.textFor(DraftError.STATUS_NOT_ALLOWED),
             )
         }
 
@@ -262,7 +262,7 @@ private fun EditorForm(uiState: IncidentEditorUiState, actions: IncidentEditorAc
             placeholder = { Text(stringResource(R.string.incident_editor_field_location_hint)) },
             singleLine = true,
             isError = DraftError.LOCATION_TOO_LONG in errors,
-            supportingText = DraftError.LOCATION_TOO_LONG.takeIf { it in errors }?.let { { Text(errorText(it)) } },
+            supportingText = errors.textFor(DraftError.LOCATION_TOO_LONG)?.let { { Text(it) } },
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -288,7 +288,7 @@ private fun EditorForm(uiState: IncidentEditorUiState, actions: IncidentEditorAc
             photos = draft.photos,
             canAddPhoto = uiState.canAddPhoto,
             isImporting = uiState.isImportingPhoto,
-            error = DraftError.TOO_MANY_PHOTOS.takeIf { it in errors }?.let { errorText(it) },
+            error = errors.textFor(DraftError.TOO_MANY_PHOTOS),
             onTakePhoto = actions.onTakePhoto,
             onChoosePhotos = actions.onChoosePhotos,
             onRemovePhoto = actions.onRemovePhoto,
@@ -334,6 +334,10 @@ private fun <T> ChoiceField(
         }
     }
 }
+
+/** The message for [error] if it is one of these errors, else null. */
+@Composable
+private fun Set<DraftError>.textFor(error: DraftError): String? = if (error in this) errorText(error) else null
 
 @Composable
 internal fun errorText(error: DraftError): String = when (error) {

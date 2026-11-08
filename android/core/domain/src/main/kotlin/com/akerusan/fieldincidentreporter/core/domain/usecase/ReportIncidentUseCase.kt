@@ -25,15 +25,16 @@ class ReportIncidentUseCase @Inject constructor(
         if (errors.isNotEmpty()) return SaveIncidentResult.Invalid(errors)
 
         val now = clock.now()
+        val normalized = draft.normalized()
         val incident = Incident(
             id = idGenerator.newId(),
-            title = draft.title.trim(),
-            description = draft.description.trim(),
-            category = checkNotNull(draft.category),
-            severity = checkNotNull(draft.severity),
-            status = draft.status,
-            locationNote = draft.locationNote.trim(),
-            photos = draft.photos,
+            title = normalized.title,
+            description = normalized.description,
+            category = checkNotNull(normalized.category),
+            severity = checkNotNull(normalized.severity),
+            status = normalized.status,
+            locationNote = normalized.locationNote,
+            photos = normalized.photos,
             reportedAt = now,
             updatedAt = now,
             syncState = SyncState.PENDING,

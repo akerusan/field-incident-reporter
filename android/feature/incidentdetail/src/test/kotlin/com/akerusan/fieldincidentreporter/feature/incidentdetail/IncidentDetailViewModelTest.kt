@@ -41,8 +41,7 @@ class IncidentDetailViewModelTest {
         viewModel.uiState.test {
             val content = awaitContent()
             assertEquals("incident-1", content.incident.id)
-            assertTrue(content.canEdit)
-            assertTrue(content.canDelete)
+            assertTrue(content.canModify)
         }
     }
 
@@ -52,8 +51,7 @@ class IncidentDetailViewModelTest {
 
         viewModel().uiState.test {
             val content = awaitContent()
-            assertFalse(content.canEdit)
-            assertFalse(content.canDelete)
+            assertFalse(content.canModify)
         }
     }
 
@@ -63,8 +61,7 @@ class IncidentDetailViewModelTest {
 
         viewModel().uiState.test {
             val content = awaitContent()
-            assertFalse(content.canEdit)
-            assertFalse(content.canDelete)
+            assertFalse(content.canModify)
         }
     }
 

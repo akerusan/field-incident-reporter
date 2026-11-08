@@ -123,6 +123,19 @@ class OfflineFirstIncidentRepositoryTest {
     }
 
     @Test
+    fun `a newer delete closes the older one's undo window and sends it`() = runTest {
+        dao.insert(entity(id = "older"))
+        dao.insert(entity(id = "newer"))
+        repository.markDeleted("older", undoUntil = env.clock.now().plusSeconds(30))
+
+        repository.markDeleted("newer", undoUntil = env.clock.now().plusSeconds(30))
+
+        assertEquals(listOf("newer"), repository.observeUndoableDeletes().first().map { it.id })
+        assertNull(checkNotNull(dao.getById("older")).incident.deleteAfter)
+        assertEquals(1, env.syncScheduler.requestCount)
+    }
+
+    @Test
     fun `the status filter applies`() = runTest {
         dao.insert(entity(id = "open"))
         dao.insert(entity(id = "resolved", status = IncidentStatus.RESOLVED))
@@ -151,13 +164,34 @@ class OfflineFirstIncidentRepositoryTest {
     // --- Discard local changes -------------------------------------------------------------------
 
     @Test
-    fun `discarding a failed incident the server never had removes it`() = runTest {
+    fun `discarding a failed create asks the server, and removes it if the server doesn't have it`() = runTest {
         dao.insert(failed(syncedVersion = 0, operation = PendingOperation.CREATE))
+        env.respond("GET", "/incidents/incident-1", 404)
 
         assertEquals(DiscardChangesResult.DISCARDED, repository.discardLocalChanges("incident-1"))
 
         assertNull(dao.getById("incident-1"))
-        assertTrue(env.requests.isEmpty())
+        assertEquals(listOf("GET /incidents/incident-1"), env.requests)
+    }
+
+    @Test
+    fun `discarding a failed create the server did receive keeps the server's copy`() = runTest {
+        dao.insert(failed(syncedVersion = 0, operation = PendingOperation.CREATE))
+        env.respond("GET", "/incidents/incident-1", 200, incidentJson())
+
+        assertEquals(DiscardChangesResult.DISCARDED, repository.discardLocalChanges("incident-1"))
+
+        assertEquals(SyncState.SYNCED, checkNotNull(dao.getById("incident-1")).incident.syncState)
+    }
+
+    @Test
+    fun `deleting twice, or editing an incident being deleted, does not crash`() = runTest {
+        dao.insert(entity())
+        repository.markDeleted("incident-1", undoUntil = env.clock.now().plusSeconds(30))
+
+        assertTrue(repository.markDeleted("incident-1", undoUntil = env.clock.now().plusSeconds(30)))
+        assertEquals(false, repository.updateIncident("incident-1", testDraft(), env.clock.now()))
+        assertEquals(PendingOperation.DELETE, checkNotNull(dao.getById("incident-1")).incident.pendingOperation)
     }
 
     @Test

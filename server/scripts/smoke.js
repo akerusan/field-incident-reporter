@@ -93,6 +93,10 @@ async function run() {
   assert.equal(response.body.code, 'VALIDATION_ERROR');
   step('PUT with an invalid body is rejected (400 VALIDATION_ERROR)');
 
+  response = await request('PATCH', `/incidents/${id}`, { status: 'IN_PROGRESS', updatedAt: '2026-11-07' });
+  assert.equal(response.status, 400);
+  step('timestamps must be ISO-8601 UTC instants (400 otherwise)');
+
   response = await request('POST', '/incidents', incident);
   assert.equal(response.status, 405);
   step('POST /incidents is not part of the contract (405)');

@@ -20,7 +20,6 @@ import androidx.compose.ui.unit.dp
 import com.akerusan.fieldincidentreporter.core.designsystem.theme.ColorPair
 import com.akerusan.fieldincidentreporter.core.designsystem.theme.FieldIncidentReporterTheme
 import com.akerusan.fieldincidentreporter.core.model.Incident
-import com.akerusan.fieldincidentreporter.core.model.PendingOperation
 import com.akerusan.fieldincidentreporter.core.model.SyncError
 import com.akerusan.fieldincidentreporter.core.model.SyncState
 
@@ -43,7 +42,7 @@ internal fun SyncStatusCard(
             colors = colors.syncPending,
             title = stringResource(R.string.incident_detail_pending_title),
             message = stringResource(
-                if (incident.pendingOperation == PendingOperation.DELETE) {
+                if (incident.isBeingDeleted) {
                     R.string.incident_detail_pending_delete_message
                 } else {
                     R.string.incident_detail_pending_message
@@ -68,6 +67,8 @@ internal fun SyncStatusCard(
 
                     SyncError.Reason.REJECTED_BY_SERVER ->
                         stringResource(R.string.incident_detail_failed_rejected, error.detail.orEmpty())
+
+                    SyncError.Reason.PHOTO_MISSING -> stringResource(R.string.incident_detail_failed_photo_missing)
 
                     SyncError.Reason.SERVER_ERROR, null -> stringResource(R.string.incident_detail_failed_server)
                 },

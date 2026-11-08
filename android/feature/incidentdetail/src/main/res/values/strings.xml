@@ -21,6 +21,7 @@
     <string name="incident_detail_failed_delete_title">Couldn\'t delete</string>
     <string name="incident_detail_failed_resolved">An operator resolved this incident, so your changes can\'t be applied. Discard them to see the operator\'s version.</string>
     <string name="incident_detail_failed_rejected">The server rejected this change: %1$s</string>
+    <string name="incident_detail_failed_photo_missing">A photo of this incident is no longer on this device. Edit the incident to remove it, then try again.</string>
     <string name="incident_detail_failed_server">The server kept failing. Try again later.</string>
     <string name="incident_detail_retry">Retry</string>
     <string name="incident_detail_discard">Discard my changes</string>

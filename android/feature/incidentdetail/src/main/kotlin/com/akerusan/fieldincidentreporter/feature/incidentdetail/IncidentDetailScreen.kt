@@ -124,7 +124,7 @@ internal fun IncidentDetailScreen(
                     }
                 },
                 actions = {
-                    if (content?.canEdit == true) {
+                    if (content?.canModify == true) {
                         IconButton(onClick = onEdit) {
                             Icon(
                                 Icons.Outlined.Edit,
@@ -132,7 +132,7 @@ internal fun IncidentDetailScreen(
                             )
                         }
                     }
-                    if (content?.canDelete == true) {
+                    if (content?.canModify == true) {
                         IconButton(onClick = { showDeleteDialog = true }) {
                             Icon(
                                 Icons.Outlined.Delete,
@@ -278,7 +278,7 @@ private fun Field(label: String, value: String) {
 }
 
 @Composable
-internal fun NoticeCard(text: String) {
+private fun NoticeCard(text: String) {
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,

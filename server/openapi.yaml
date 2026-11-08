@@ -14,7 +14,8 @@ info:
     `RESOLVED`. Once resolved, an incident can't be overwritten or deleted by the app (`409`);
     an operator can reopen it.
 
-    **Timestamps** are ISO-8601 UTC instants set by the client. The server stores what it
+    **Timestamps** are ISO-8601 UTC instants ending in `Z` (for example `2026-11-07T08:30:00Z`), set
+    by the client. The server stores what it
     receives; concurrent writes are last-write-wins, except for the `RESOLVED` rule above.
 
     **Photos** are uploaded first (`POST /uploads`), then referenced from the incident by the
