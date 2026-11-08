@@ -15,10 +15,19 @@ const selectStyle =
 /**
  * Filters as a plain GET form: the view lives in the URL, works without JavaScript, and a filtered
  * list can be bookmarked or shared.
+ *
+ * The selects are uncontrolled, and React never re-applies a changed `defaultValue` to a mounted
+ * select. The form is keyed on the view, so a client-side navigation (a status card, "Clear")
+ * remounts it with the new values instead of leaving the old ones selected.
  */
 export function FilterBar({ view }: { view: IncidentView }) {
   return (
-    <form method="get" className="flex flex-wrap items-end gap-3" aria-label="Filter incidents">
+    <form
+      key={JSON.stringify(view)}
+      method="get"
+      className="flex flex-wrap items-end gap-3"
+      aria-label="Filter incidents"
+    >
       <Select name="status" label="Status" value={view.status} options={STATUSES} labels={STATUS_LABELS} />
       <Select name="severity" label="Severity" value={view.severity} options={SEVERITIES} labels={SEVERITY_LABELS} />
       <Select name="category" label="Category" value={view.category} options={CATEGORIES} labels={CATEGORY_LABELS} />
