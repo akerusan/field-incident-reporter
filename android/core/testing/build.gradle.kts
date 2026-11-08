@@ -1,9 +1,5 @@
 plugins {
-    alias(libs.plugins.fir.android.library)
-}
-
-android {
-    namespace = "com.akerusan.fieldincidentreporter.core.testing"
+    alias(libs.plugins.fir.jvm.library)
 }
 
 dependencies {

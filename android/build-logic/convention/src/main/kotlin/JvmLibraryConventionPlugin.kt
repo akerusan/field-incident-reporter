@@ -11,6 +11,12 @@ class JvmLibraryConventionPlugin : Plugin<Project> {
         with(target) {
             pluginManager.apply("org.jetbrains.kotlin.jvm")
             configureKotlinJvm()
+            // Same task name as Android modules, so `./gradlew testDebugUnitTest` runs every test.
+            tasks.register("testDebugUnitTest") {
+                group = "verification"
+                description = "Runs the unit tests (alias of `test` for JVM modules)."
+                dependsOn("test")
+            }
             dependencies {
                 add("testImplementation", libs.library("junit"))
                 add("testImplementation", libs.library("kotlinx-coroutines-test"))

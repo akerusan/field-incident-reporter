@@ -2,8 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Permissions are declared by the modules that need them (core:network, core:data). -->
 
     <!-- Pending incidents live in the local database until they reach the server; restoring them
          on another device would resend stale writes, so app data is not backed up. -->

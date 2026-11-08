@@ -24,7 +24,7 @@ Run from `android/` (`./gradlew` from Git Bash, `gradlew.bat` from cmd/PowerShel
 ./gradlew spotlessApply                                               # format Kotlin + Gradle scripts
 ./gradlew :core:data:testDebugUnitTest                                # one module's tests
 ./gradlew :core:data:testDebugUnitTest --tests "*SyncWorkerTest"      # one test class
-./gradlew :core:domain:test                                           # JVM-only modules use `test`
+./gradlew :core:domain:test                                           # JVM modules: `test` (testDebugUnitTest is an alias)
 ```
 
 ## Build setup
@@ -57,9 +57,19 @@ Dependency rule: `feature → domain + model + designsystem`. Features never dep
 - `:core:network`: Retrofit API and DTOs
 - `:core:data`: offline-first repository, mappers, `SyncWorker`, photo storage
 - `:core:designsystem`: theme and shared Compose components
-- `:core:testing`: fakes and test utilities
+- `:core:testing` (JVM): fakes (`FakeIncidentRepository`, `FakeClock`, ...), `MainDispatcherRule`, test data builders
 - `:feature:incidentlist`, `:feature:incidentdetail`, `:feature:incidenteditor`
 
 Room is the single source of truth; the UI observes Room flows and a single WorkManager unique
 work (`sync`) pushes pending local changes, then pulls from the server. See `docs/adr/` for the
 reasoning behind the sync design.
+
+Sync invariants (break these and the integration tests in `core/data` should fail):
+- Sync state changes go through the pure functions in `core/data/.../sync/SyncTransitions.kt`.
+- `localVersion` only grows, and only on user writes; sync-side writes never bump it. Server
+  confirmations are conditional on the version that was sent (`IncidentDao.markSynced`,
+  `deleteIfVersion`, `markFailed`).
+- The pull never overwrites PENDING or FAILED rows; rows inserted by the pull get version 1/1.
+- One unique work name only; `SyncWorker` returns success or retry, never failure.
+- Data tests use `DataTestEnvironment` (in-memory Room + MockWebServer). A mocked `GET /incidents`
+  must include rows the test expects to stay synced, or the pull removes them.
