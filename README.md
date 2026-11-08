@@ -8,11 +8,12 @@ working in basements, plant rooms and anywhere else the signal drops.
 |---|---|
 | [`android/`](android/) | Android app: Kotlin, Jetpack Compose, MVVM + use cases, Hilt, Room, WorkManager, Navigation 3 |
 | [`server/`](server/) | Local mock API (json-server with photo uploads) and its [OpenAPI contract](server/openapi.yaml) |
+| [`web/`](web/) | Operator dashboard: Next.js (App Router), TypeScript, Tailwind. Triage, filter and resolve incidents |
 | [`docs/`](docs/) | [Architecture decision records](docs/adr/) and the AI usage log |
 
 ## Quick start
 
-Requirements: Node.js 20+, and Android Studio (stable) with an emulator or a device on API 26+.
+Requirements: Node.js 22.12+, and Android Studio (stable) with an emulator or a device on API 26+.
 
 ```bash
 # 1. Mock API, seeded with sample incidents
@@ -23,6 +24,11 @@ npm start                 # http://localhost:3000
 # 2. App (or open android/ in Android Studio and run "app")
 cd android
 ./gradlew installDebug
+
+# 3. Operator dashboard (optional)
+cd web
+npm install
+npm run dev               # http://localhost:3001
 ```
 
 The emulator reaches the API at `http://10.0.2.2:3000`, the default. For a physical device, or an
@@ -48,6 +54,9 @@ Notes:
 - **View** incidents, newest first, filtered by status; open one to see its photos and details.
 - **Edit** or **delete** an incident, with undo. Resolved incidents are read-only: resolving is an
   operator decision ([ADR-0005](docs/adr/0005-status-ownership.md)).
+- **Triage from the dashboard.** Operators see every incident with counts per status, filter by
+  status, severity and category (the filters live in the URL, so a view can be shared), and move
+  incidents to in progress, resolved, or back to open. Resolving locks the incident in the app.
 - **Work offline.** Every change is saved locally right away and synced when a connection is back.
   Each incident shows whether it's waiting to sync or was rejected, and a rejected change can be
   retried or discarded.
@@ -63,6 +72,7 @@ Notes:
 | Photo capture, compression and upload | Cleaning up uploads orphaned by deleted photos | Upload deduplication and an orphan sweep |
 | Undo for deletes | Paging: a technician's incident list is small | Paging (Paging 3) and incremental sync (`updatedSince`) |
 | Resolved incidents locked for technicians (`409`) | Adaptive list-detail layout for tablets | Crash reporting, analytics, release signing and R8 rules review |
+| Operator dashboard with triage, filters and photos | Dashboard sign-in and a live update channel (it re-reads on each page load) | Operator accounts and roles, push updates (SSE or WebSocket) |
 | Unit, integration and Compose UI tests in CI | A Japanese translation (strings are all resources, ready for it) | Screenshot tests and instrumented end-to-end tests on devices |
 
 ## Architecture
@@ -108,7 +118,8 @@ The reasoning behind each choice is in [`docs/adr/`](docs/adr/).
 
 ## API contract
 
-The full contract is [`server/openapi.yaml`](server/openapi.yaml), linted in CI.
+The full contract is [`server/openapi.yaml`](server/openapi.yaml), linted in CI. The dashboard's
+TypeScript types are generated from it (`npm run generate:api`), and CI fails if they drift.
 
 | Method | Path | Notes |
 |---|---|---|
@@ -127,6 +138,7 @@ incident, `PUT` and `DELETE` from the app return `409 INCIDENT_RESOLVED`.
 ```bash
 cd android && ./gradlew spotlessCheck assembleDebug testDebugUnitTest lintDebug
 cd server  && npm run lint:api && npm run smoke
+cd web     && npm run lint && npm run typecheck && npm test && npm run build
 ```
 
 - **Domain:** every use case, against fakes from `:core:testing`.
@@ -134,5 +146,7 @@ cd server  && npm run lint:api && npm run smoke
   in-memory database and a scripted mock server, including the race conditions above.
 - **UI:** ViewModel tests for each screen, and Compose UI tests that run on the JVM (Robolectric).
 - **API:** an end-to-end smoke test of every endpoint.
+- **Dashboard:** Vitest for the filtering and triage rules, Testing Library for components, plus
+  lint, typecheck and a production build.
 
 All of it runs in CI on every pull request.

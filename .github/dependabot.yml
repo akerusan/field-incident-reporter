@@ -23,3 +23,11 @@ updates:
       # Pinned on purpose: json-server 1.x is a rewrite (still beta) with a different API.
       - dependency-name: json-server
         update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    groups:
+      next:
+        patterns: ["next", "eslint-config-next", "react", "react-dom", "@types/react", "@types/react-dom"]
