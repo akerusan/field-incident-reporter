@@ -36,8 +36,9 @@ co-wrote carry a `Co-Authored-By` trailer.
 
 ### Build foundation
 
-- **Used for:** scaffolding the `build-logic` convention plugins, the version catalog, CI and
-  Dependabot config.
+- **Used for:** scaffolding the `build-logic` convention plugins, the version catalog and CI. A
+  Dependabot config was added too, then removed: on a short-lived project its version-bump pull
+  requests were noise, and several proposed versions that were pinned on purpose.
 - **Checked by:** a toolchain probe before any feature code (a Hilt + Room module, a pure JVM
   module, a Compose module, Robolectric tests, configuration cache), built from a clean checkout.
 - **Issues found and fixed during the probe:**
